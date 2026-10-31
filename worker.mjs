@@ -156,6 +156,20 @@ export default {
         return reply(await makeSession(env, user));
       }
 
+      if (url.pathname === '/api/storage') {
+        if (request.method !== 'GET') return reply({ error: 'Method not allowed' }, 405);
+        if (!env.GITHUB_TOKEN) throw fail('저장 서버 설정이 아직 완료되지 않았습니다.', 503);
+        const repo = env.GITHUB_REPO || 'tag-box/tagbox';
+        const res = await fetch(`https://api.github.com/repos/${repo}`, {
+          headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'TagBox', Accept: 'application/vnd.github+json' }
+        });
+        if (!res.ok) throw fail(`저장소 정보를 가져오지 못했습니다. (${res.status})`, res.status);
+        const data = await res.json();
+        const used = Number(data.size || 0) * 1024;
+        const limit = 1024 * 1024 * 1024;
+        return reply({ used, limit, percent: Math.min(100, (used / limit) * 100) });
+      }
+
       if (url.pathname === '/api/chat') {
         if (!env.DB) throw fail('채팅 저장소가 설정되지 않았습니다.', 503);
         if (request.method === 'GET') {

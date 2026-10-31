@@ -113,6 +113,39 @@ body{
   flex-wrap:wrap
 }
 
+.storage{
+  display:none;
+  flex:1 1 220px;
+  max-width:320px;
+  margin:0 18px
+}
+
+.storage.open{
+  display:block
+}
+
+.storage-bar{
+  height:8px;
+  border-radius:999px;
+  background:light-dark(#e3e9f1,#242c38);
+  overflow:hidden
+}
+
+.storage-fill{
+  height:100%;
+  width:0;
+  background:linear-gradient(90deg,#6d5dfc,#36cfc9);
+  transition:width .3s
+}
+
+.storage-text{
+  font-size:11px;
+  color:#7c8797;
+  margin-top:4px;
+  text-align:right;
+  white-space:nowrap
+}
+
 .panel{
   max-width:1180px;
   margin:24px auto 0;
@@ -762,6 +795,13 @@ body:has(.modal.open){
 
   </div>
 
+  <div class="storage" id="storage" title="GitHub 저장소 권장 용량 1GB 기준">
+    <div class="storage-bar">
+      <div class="storage-fill" id="storageFill"></div>
+    </div>
+    <div class="storage-text" id="storageText">저장소 확인 중…</div>
+  </div>
+
   <div class="header-right">
     <div class="stats" id="stats"></div>
     <button id="themeBtn" class="secondary" type="button">라이트 모드</button>
@@ -1322,6 +1362,46 @@ $('chatForm').onsubmit = async e => {
     alert(`채팅 전송 실패\n\n${error.message || error}`);
   }
 };
+
+
+// =========================
+// 저장소 사용량
+// =========================
+
+async function loadStorage(){
+  const base =
+    (window.TAGBOX_CONFIG.apiUrl || '').replace(/\/$/, '');
+
+  if(!base){
+    return;
+  }
+
+  try{
+    const res = await fetch(`${base}/api/storage`);
+    if(!res.ok){
+      return;
+    }
+
+    const data = await res.json();
+    const usedMB = data.used / (1024 * 1024);
+    const limitGB = data.limit / (1024 * 1024 * 1024);
+    const percent =
+      Math.max(0, Math.min(100, Number(data.percent) || 0));
+
+    $('storage').classList.add('open');
+    $('storageFill').style.width = `${percent}%`;
+    $('storageText').textContent =
+      `${usedMB.toFixed(1)}MB / ${limitGB.toFixed(0)}GB (${percent.toFixed(1)}%)`;
+
+    if(percent >= 80){
+      $('storageFill').style.background = '#ff5c5c';
+    }
+  }catch(error){
+    console.error('저장소 사용량 확인 실패:', error);
+  }
+}
+
+loadStorage();
 
 
 // =========================
