@@ -7,12 +7,13 @@ GITHUB_REPO = "tag-box/tagbox"
 GITHUB_BRANCH = "main"
 SITE_ORIGIN = "https://tag-box.github.io"
 SITE_URL = "https://tag-box.github.io/tagbox/"
-CALLBACK_URL = "https://tagbox-storage.gloomybunnie.workers.dev/auth/callback"
-ADMIN_LOGINS = "tag-box,brave-league"
-OAUTH_CLIENT_ID = "Ov23liyXKZQVJCFV7xAG"
+ADMIN_LOGINS = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tagbox-users"
+database_id = "7aa8b47d-ada3-4a98-bad1-f69bf2615fc0"
 
 # Secrets (set in Cloudflare, never here):
-#   GITHUB_TOKEN         - repo Contents read/write token
-#   OAUTH_CLIENT_ID      - GitHub OAuth App client id
-#   OAUTH_CLIENT_SECRET  - GitHub OAuth App client secret
-#   SESSION_SECRET       - random string used to sign login sessions
+#   GITHUB_TOKEN    - repo Contents read/write token
+#   SESSION_SECRET  - random string used to sign login sessions

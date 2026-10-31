@@ -1,6 +1,7 @@
-// Anyone may add images. Tag changes require GitHub login; a tag may only be edited
-// or removed by the GitHub account that added it (admins can edit any tag).
+// Anyone may add images. Tag changes require a TagBox account; a tag may only be
+// edited or removed by the account that added it (admins can edit any tag).
 const MAX = 14 * 1024 * 1024;
+const DEFAULT_ITERATIONS = 100000;
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const decode = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), c => c.charCodeAt(0)));
 function encoded(text) {
@@ -27,10 +28,16 @@ const b64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)))
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64urlText = text => b64url(new TextEncoder().encode(text));
 function fromB64url(text) {
-  let s = text.replace(/-/g, '+').replace(/_/g, '/');
+  let s = String(text).replace(/-/g, '+').replace(/_/g, '/');
   while (s.length % 4) s += '=';
   const bin = atob(s);
   return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+}
+function b64urlToBytes(text) {
+  let s = String(text).replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
 }
 function safeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
@@ -59,6 +66,11 @@ async function readToken(request, env) {
     return payload;
   } catch { return null; }
 }
+async function hashPassword(password, salt, iterations) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: b64urlToBytes(salt), iterations, hash: 'SHA-256' }, key, 256);
+  return b64url(bits);
+}
 function adminLogins(env) {
   return String(env.ADMIN_LOGINS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
@@ -72,6 +84,15 @@ function ownedTags(tags, owners) {
   }
   return out;
 }
+function checkCredentials(username, password) {
+  if (!/^[A-Za-z0-9_-]{3,24}$/.test(username)) throw fail('아이디는 영문·숫자·_·- 3~24자로 입력해주세요.');
+  if (typeof password !== 'string' || password.length < 8 || password.length > 100) throw fail('비밀번호는 8~100자로 입력해주세요.');
+}
+async function makeSession(env, user) {
+  const adm = Boolean(user.admin) || adminLogins(env).includes(String(user.username).toLowerCase());
+  const token = await signToken({ uid: String(user.id), login: user.display, adm, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, env.SESSION_SECRET);
+  return { token, uid: String(user.id), login: user.display, adm };
+}
 
 export default {
   async fetch(request, env) {
@@ -82,42 +103,39 @@ export default {
     const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers });
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     const url = new URL(request.url);
-    const callbackUrl = env.CALLBACK_URL || `${url.origin}/auth/callback`;
     try {
-      if (url.pathname === '/auth/login') {
-        if (!env.OAUTH_CLIENT_ID || !env.SESSION_SECRET) throw fail('로그인 설정이 아직 완료되지 않았습니다.', 503);
-        const state = await signToken({ k: 'state', n: crypto.randomUUID(), exp: Date.now() + 10 * 60 * 1000 }, env.SESSION_SECRET);
-        const target = new URL('https://github.com/login/oauth/authorize');
-        target.searchParams.set('client_id', env.OAUTH_CLIENT_ID);
-        target.searchParams.set('redirect_uri', callbackUrl);
-        target.searchParams.set('scope', 'read:user');
-        target.searchParams.set('state', state);
-        return Response.redirect(target.toString(), 302);
+      if (url.pathname === '/auth/register' || url.pathname === '/auth/login') {
+        if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405);
+        if (!env.SESSION_SECRET) throw fail('로그인 설정이 아직 완료되지 않았습니다.', 503);
+        if (!env.DB) throw fail('계정 저장소가 설정되지 않았습니다.', 503);
+        const input = await bodyJSON(request);
+        const display = String(input.username || '').trim();
+        const password = String(input.password || '');
+        checkCredentials(display, password);
+        const username = display.toLowerCase();
+        if (url.pathname === '/auth/register') {
+          const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+          if (existing) throw fail('이미 사용 중인 아이디입니다.', 409);
+          const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
+          const admin = Number(total && total.n) === 0 ? 1 : 0;
+          const salt = b64url(crypto.getRandomValues(new Uint8Array(16)));
+          const iterations = Number(env.PBKDF2_ITERATIONS) || DEFAULT_ITERATIONS;
+          const hash = await hashPassword(password, salt, iterations);
+          const inserted = await env.DB.prepare(
+            'INSERT INTO users (username, display, salt, hash, iterations, admin, created) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).bind(username, display, salt, hash, iterations, admin, Date.now()).run();
+          return reply(await makeSession(env, { id: inserted.meta.last_row_id, display, username, admin }));
+        }
+        const user = await env.DB.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
+        if (!user) throw fail('아이디 또는 비밀번호가 올바르지 않습니다.', 401);
+        const hash = await hashPassword(password, user.salt, Number(user.iterations) || DEFAULT_ITERATIONS);
+        if (!safeEqual(hash, user.hash)) throw fail('아이디 또는 비밀번호가 올바르지 않습니다.', 401);
+        return reply(await makeSession(env, user));
       }
-      if (url.pathname === '/auth/callback') {
-        if (!env.OAUTH_CLIENT_ID || !env.OAUTH_CLIENT_SECRET || !env.SESSION_SECRET) throw fail('로그인 설정이 아직 완료되지 않았습니다.', 503);
-        const state = url.searchParams.get('state') || '';
-        const [stateBody, stateSig] = state.split('.');
-        const validState = stateBody && stateSig &&
-          safeEqual(await hmac(env.SESSION_SECRET, stateBody), stateSig) &&
-          (() => { try { const p = JSON.parse(fromB64url(stateBody)); return p.k === 'state' && p.exp > Date.now(); } catch { return false; } })();
-        if (!validState) throw fail('로그인 요청이 만료되었습니다. 다시 시도해주세요.', 400);
-        const code = url.searchParams.get('code');
-        if (!code) throw fail('GitHub 승인이 취소되었습니다.', 400);
-        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-          method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_id: env.OAUTH_CLIENT_ID, client_secret: env.OAUTH_CLIENT_SECRET, code, redirect_uri: callbackUrl })
-        });
-        const tokenData = await tokenRes.json().catch(() => ({}));
-        if (!tokenData.access_token) throw fail('GitHub 로그인에 실패했습니다.', 401);
-        const userRes = await fetch('https://api.github.com/user', {
-          headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'TagBox', Accept: 'application/vnd.github+json' }
-        });
-        const user = await userRes.json().catch(() => ({}));
-        if (!user || !user.id) throw fail('GitHub 사용자 정보를 가져오지 못했습니다.', 401);
-        const adm = adminLogins(env).includes(String(user.login).toLowerCase());
-        const session = await signToken({ uid: String(user.id), login: user.login, adm, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, env.SESSION_SECRET);
-        return Response.redirect(`${env.SITE_URL || 'https://tag-box.github.io/tagbox/'}#auth=${session}`, 302);
+      if (url.pathname === '/auth/me') {
+        const session = await readToken(request, env);
+        if (!session) throw fail('로그인이 필요합니다.', 401);
+        return reply({ uid: session.uid, login: session.login, adm: Boolean(session.adm) });
       }
 
       if (url.pathname !== '/api/images') return reply({ error: 'Not found' }, 404);
@@ -168,7 +186,7 @@ export default {
       if (request.method === 'PATCH') {
         if (!Array.isArray(input.tags) || input.tags.length > 100 || input.tags.some(t => typeof t !== 'string' || t.length > 100)) throw fail('태그는 100개 이하, 각 100자 이하로 입력해주세요.');
         session = await readToken(request, env);
-        if (!session) throw fail('태그를 바꾸려면 GitHub 로그인이 필요합니다.', 401);
+        if (!session) throw fail('태그를 바꾸려면 로그인이 필요합니다.', 401);
       }
       // Compare-and-swap branch updates prevent concurrent edits losing records.
       for (let attempt = 0; attempt < 4; attempt++) {

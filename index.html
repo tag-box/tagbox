@@ -485,7 +485,7 @@ button:hover{
 
   <div class="header-right">
     <div class="stats" id="stats"></div>
-    <button id="authBtn" class="secondary" type="button" style="display:none">GitHub 로그인</button>
+    <button id="authBtn" class="secondary" type="button" style="display:none">로그인 / 회원가입</button>
   </div>
 
 </header>
@@ -620,7 +620,7 @@ button:hover{
 
     <div class="hint">
       여러 개를 넣으려면 쉼표로 구분하세요.
-      예: 고양이, 귀여움, 실내 · 태그 추가는 GitHub 로그인 후 누구나 가능하고,
+      예: 고양이, 귀여움, 실내 · 태그 추가는 로그인 후 누구나 가능하고,
       수정·삭제는 그 태그를 추가한 계정에서만 됩니다.
     </div>
 
@@ -649,6 +649,43 @@ button:hover{
         이미지 삭제
       </button>
 
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- 로그인 / 회원가입 -->
+
+<div class="modal" id="authModal">
+
+  <div class="dialog" style="width:min(430px,100%)">
+
+    <button id="authClose" class="secondary" type="button" style="float:right">
+      닫기
+    </button>
+
+    <h2 style="margin:6px 0 16px;font-size:19px">
+      TagBox 계정
+    </h2>
+
+    <div class="formrow">
+      <input id="authUser" autocomplete="username" placeholder="아이디 (영문·숫자·_·- 3~24자)">
+    </div>
+
+    <div class="formrow">
+      <input id="authPass" type="password" autocomplete="current-password" placeholder="비밀번호 (8자 이상)">
+    </div>
+
+    <div class="actions">
+      <button id="authRegister" class="secondary" type="button">회원가입</button>
+      <button id="authLogin" type="button">로그인</button>
+    </div>
+
+    <div class="hint">
+      첫 번째로 가입한 계정이 관리자가 됩니다.
+      비밀번호는 복구할 수 없으니 기억해주세요.
     </div>
 
   </div>
@@ -769,17 +806,74 @@ function renderAuth(){
       }
     };
   }else{
-    button.textContent = 'GitHub 로그인';
-    button.onclick = () => {
-      const base =
-        (window.TAGBOX_CONFIG.apiUrl || '').replace(/\/$/, '');
-      if(!base){
-        return;
-      }
-      location.href = base + '/auth/login';
-    };
+    button.textContent = '로그인 / 회원가입';
+    button.onclick = openAuth;
   }
 }
+
+function openAuth(){
+  $('authUser').value = '';
+  $('authPass').value = '';
+  $('authModal').classList.add('open');
+  $('authUser').focus();
+}
+
+function closeAuth(){
+  $('authModal').classList.remove('open');
+}
+
+async function submitAuth(kind){
+  const username = $('authUser').value.trim();
+  const password = $('authPass').value;
+
+  if(!username || !password){
+    alert('아이디와 비밀번호를 입력해주세요.');
+    return;
+  }
+
+  try{
+    const result =
+      kind === 'register'
+        ? await window.tagboxAPI.register(username, password)
+        : await window.tagboxAPI.login(username, password);
+
+    if(!result || !result.token){
+      throw new Error('로그인 응답이 올바르지 않습니다.');
+    }
+
+    setToken(result.token);
+    loadSession();
+    closeAuth();
+    await load();
+
+    if($('modal').classList.contains('open')){
+      renderModalTags();
+    }
+
+  }catch(error){
+    alert(
+      (kind === 'register' ? '회원가입' : '로그인') +
+      `에 실패했습니다.\n\n${error.message || error}`
+    );
+  }
+}
+
+$('authLogin').onclick = () => submitAuth('login');
+$('authRegister').onclick = () => submitAuth('register');
+$('authClose').onclick = closeAuth;
+
+$('authModal').onclick = e => {
+  if(e.target === $('authModal')){
+    closeAuth();
+  }
+};
+
+$('authPass').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    submitAuth('login');
+  }
+});
 
 // 이미지 확대/이동 상태
 let zoom = 1;
@@ -1527,8 +1621,7 @@ $('addTag').onclick = async () => {
   }
 
   if(window.tagboxShared && !session){
-    alert('태그를 추가하려면 GitHub 로그인이 필요합니다.');
-    renderAuth();
+    openAuth();
     return;
   }
 
@@ -1946,26 +2039,18 @@ $('demo').onclick = () => load();
 // 시작
 // =========================
 
-const incomingHash = location.hash.slice(1);
-
-// GitHub 로그인 후 돌아온 세션 토큰
-if(incomingHash.startsWith('auth=')){
-  setToken(incomingHash.slice(5));
-  history.replaceState(null, '', location.pathname + location.search);
-}
-
 $('modeBanner').textContent = window.tagboxShared
-  ? '공동 라이브러리 · 이미지 추가는 누구나, 태그는 GitHub 로그인 후 추가할 수 있고 수정·삭제는 추가한 계정만 가능합니다.'
+  ? '공동 라이브러리 · 이미지 추가는 누구나, 태그는 로그인 후 추가할 수 있고 수정·삭제는 추가한 계정만 가능합니다.'
   : '브라우저 체험 모드 · 이 기기에만 저장됩니다. GitHub 공동 저장 서버는 아직 연결되지 않았습니다.';
 load().then(() => {
   const hash = location.hash.slice(1);
-  if(hash && !hash.startsWith('auth=')){
+  if(hash){
     openItem(hash);
   }
 });
 window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1);
-  if(hash && !hash.startsWith('auth=')){
+  if(hash){
     openItem(hash);
   }
 });
