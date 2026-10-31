@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
   display TEXT NOT NULL,
+  nickname TEXT,
   salt TEXT NOT NULL,
   hash TEXT NOT NULL,
   iterations INTEGER NOT NULL,

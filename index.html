@@ -384,8 +384,19 @@ body:has(.modal.open){
   overflow-y:auto;
   padding:16px;
   box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
   border-left:1px solid light-dark(#e1e7ef,#283241);
   background:light-dark(#fff,#171d26)
+}
+
+.side-inner{
+  margin:auto 0;
+  width:100%
+}
+
+.side .actions{
+  justify-content:center
 }
 
 .image-viewer{
@@ -478,7 +489,8 @@ body:has(.modal.open){
 
 .modal-tags{
   margin:0 0 14px;
-  min-height:28px
+  min-height:28px;
+  text-align:center
 }
 
 .chat-dock{
@@ -753,6 +765,7 @@ body:has(.modal.open){
   <div class="header-right">
     <div class="stats" id="stats"></div>
     <button id="themeBtn" class="secondary" type="button">라이트 모드</button>
+    <button id="nickBtn" class="secondary" type="button" style="display:none">닉네임 변경</button>
     <button id="authBtn" class="secondary" type="button" style="display:none">로그인 / 회원가입</button>
   </div>
 
@@ -843,6 +856,8 @@ body:has(.modal.open){
 
     <aside class="side">
 
+    <div class="side-inner">
+
     <div
       class="modal-tags"
       id="modalTags"
@@ -876,7 +891,7 @@ body:has(.modal.open){
       <button id="zoomIn" class="secondary" type="button">＋</button>
     </div>
 
-    <div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+    <div class="actions" style="justify-content:center;gap:8px;flex-wrap:wrap">
       <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
       <button id="openOriginal" class="secondary" type="button">원본 열기</button>
       <button id="saveTags">태그 저장</button>
@@ -887,6 +902,8 @@ body:has(.modal.open){
     </div>
 
     <button id="close" class="secondary" type="button" style="width:100%;margin-top:14px">닫기</button>
+
+    </div>
 
     </aside>
 
@@ -911,6 +928,10 @@ body:has(.modal.open){
 
     <div class="formrow">
       <input id="authUser" autocomplete="username" placeholder="아이디 (영문·숫자·_·- 3~24자)">
+    </div>
+
+    <div class="formrow">
+      <input id="authNick" autocomplete="nickname" placeholder="닉네임 (채팅에 표시, 1~20자)">
     </div>
 
     <div class="formrow">
@@ -1054,10 +1075,12 @@ function renderAuth(){
 
   if(!window.tagboxShared){
     button.style.display = 'none';
+    $('nickBtn').style.display = 'none';
     return;
   }
 
   button.style.display = 'inline-block';
+  $('nickBtn').style.display = session ? 'inline-block' : 'none';
 
   if(session){
     button.textContent =
@@ -1076,6 +1099,63 @@ function renderAuth(){
     button.onclick = openAuth;
   }
 }
+
+$('nickBtn').onclick = async () => {
+  if(!session){
+    return;
+  }
+
+  const next = prompt(
+    '새 닉네임 (1~20자, 채팅에 표시됩니다)',
+    session.login
+  );
+
+  if(next === null){
+    return;
+  }
+
+  const nickname = next.trim();
+
+  if(!nickname){
+    alert('닉네임을 입력해주세요.');
+    return;
+  }
+
+  try{
+    const base =
+      (window.TAGBOX_CONFIG.apiUrl || '').replace(/\/$/, '');
+
+    const res = await fetch(
+      `${base}/auth/nickname`,
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          Authorization:`Bearer ${getToken()}`
+        },
+        body:JSON.stringify({ nickname })
+      }
+    );
+
+    const data =
+      await res.json().catch(() => ({}));
+
+    if(!res.ok){
+      throw new Error(data.error || '변경에 실패했습니다.');
+    }
+
+    setToken(data.token);
+    loadSession();
+    renderAuth();
+
+    alert(`닉네임을 "${data.login}"(으)로 변경했습니다.`);
+
+    await pullChat(true);
+
+  }catch(error){
+    alert(`닉네임 변경 실패\n\n${error.message || error}`);
+  }
+};
 
 // =========================
 // 채팅
@@ -1105,10 +1185,11 @@ function appendChat(rows){
     }
 
     const own = session && session.login === m.login;
+    const crown = Number(m.adm) ? '👑 ' : '';
     const item = document.createElement('div');
     item.className = 'chat-msg' + (own ? ' own' : '');
     item.innerHTML =
-      `<span class="chat-name">${esc(m.login)}</span>` +
+      `<span class="chat-name">${crown}${esc(m.login)}</span>` +
       `<span class="chat-body">${esc(m.body)}</span>`;
 
     log.appendChild(item);
@@ -1283,6 +1364,7 @@ renderThemeButton();
 
 function openAuth(){
   $('authUser').value = '';
+  $('authNick').value = '';
   $('authPass').value = '';
   $('authCode').value = '';
   $('authModal').classList.add('open');
@@ -1302,7 +1384,13 @@ async function submitAuth(kind){
     return;
   }
 
+  const nickname = $('authNick').value.trim();
   const code = $('authCode').value.trim();
+
+  if(kind === 'register' && !nickname){
+    alert('닉네임을 입력해주세요. (채팅에 표시됩니다)');
+    return;
+  }
 
   if(kind === 'register' && !code){
     alert('가입 코드를 입력해주세요.');
@@ -1312,7 +1400,7 @@ async function submitAuth(kind){
   try{
     const result =
       kind === 'register'
-        ? await window.tagboxAPI.register(username, password, code)
+        ? await window.tagboxAPI.register(username, nickname, password, code)
         : await window.tagboxAPI.login(username, password);
 
     if(!result || !result.token){

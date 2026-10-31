@@ -90,8 +90,9 @@ function checkCredentials(username, password) {
 }
 async function makeSession(env, user) {
   const adm = Boolean(user.admin) || adminLogins(env).includes(String(user.username).toLowerCase());
-  const token = await signToken({ uid: String(user.id), login: user.display, adm, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, env.SESSION_SECRET);
-  return { token, uid: String(user.id), login: user.display, adm };
+  const login = user.nickname || user.display;
+  const token = await signToken({ uid: String(user.id), login, adm, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, env.SESSION_SECRET);
+  return { token, uid: String(user.id), login, adm };
 }
 
 export default {
@@ -111,11 +112,13 @@ export default {
         const input = await bodyJSON(request);
         const display = String(input.username || '').trim();
         const password = String(input.password || '');
+        const nickname = String(input.nickname || '').trim();
         checkCredentials(display, password);
         const username = display.toLowerCase();
         if (url.pathname === '/auth/register') {
           if (!env.SIGNUP_CODE) throw fail('회원가입이 잠겨 있습니다.', 403);
           if (!safeEqual(String(input.code || ''), String(env.SIGNUP_CODE))) throw fail('가입 코드가 올바르지 않습니다.', 403);
+          if (!nickname || nickname.length > 20 || /[\r\n<>]/.test(nickname)) throw fail('닉네임은 1~20자로 입력해주세요. (채팅에 표시됩니다)');
           const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
           if (existing) throw fail('이미 사용 중인 아이디입니다.', 409);
           const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
@@ -124,9 +127,9 @@ export default {
           const iterations = Number(env.PBKDF2_ITERATIONS) || DEFAULT_ITERATIONS;
           const hash = await hashPassword(password, salt, iterations);
           const inserted = await env.DB.prepare(
-            'INSERT INTO users (username, display, salt, hash, iterations, admin, created) VALUES (?, ?, ?, ?, ?, ?, ?)'
-          ).bind(username, display, salt, hash, iterations, admin, Date.now()).run();
-          return reply(await makeSession(env, { id: inserted.meta.last_row_id, display, username, admin }));
+            'INSERT INTO users (username, display, nickname, salt, hash, iterations, admin, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(username, display, nickname, salt, hash, iterations, admin, Date.now()).run();
+          return reply(await makeSession(env, { id: inserted.meta.last_row_id, display, nickname, username, admin }));
         }
         const user = await env.DB.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
         if (!user) throw fail('아이디 또는 비밀번호가 올바르지 않습니다.', 401);
@@ -139,13 +142,26 @@ export default {
         if (!session) throw fail('로그인이 필요합니다.', 401);
         return reply({ uid: session.uid, login: session.login, adm: Boolean(session.adm) });
       }
+      if (url.pathname === '/auth/nickname') {
+        if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405);
+        if (!env.DB) throw fail('계정 저장소가 설정되지 않았습니다.', 503);
+        const session = await readToken(request, env);
+        if (!session) throw fail('로그인이 필요합니다.', 401);
+        const input = await bodyJSON(request);
+        const nickname = String(input.nickname || '').trim();
+        if (!nickname || nickname.length > 20 || /[\r\n<>]/.test(nickname)) throw fail('닉네임은 1~20자로 입력해주세요.');
+        await env.DB.prepare('UPDATE users SET nickname = ? WHERE id = ?').bind(nickname, Number(session.uid)).run();
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(Number(session.uid)).first();
+        if (!user) throw fail('계정을 찾지 못했습니다.', 404);
+        return reply(await makeSession(env, user));
+      }
 
       if (url.pathname === '/api/chat') {
         if (!env.DB) throw fail('채팅 저장소가 설정되지 않았습니다.', 503);
         if (request.method === 'GET') {
           const after = Number(url.searchParams.get('after')) || 0;
           const rows = await env.DB.prepare(
-            'SELECT id, login, body, created FROM messages WHERE id > ? ORDER BY id DESC LIMIT 60'
+            'SELECT m.id, COALESCE(u.nickname, m.login) AS login, m.body, m.created, COALESCE(u.admin, 0) AS adm FROM messages m LEFT JOIN users u ON u.id = CAST(m.uid AS INTEGER) WHERE m.id > ? ORDER BY m.id DESC LIMIT 60'
           ).bind(after).all();
           return reply((rows.results || []).reverse());
         }
