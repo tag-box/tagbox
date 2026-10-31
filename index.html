@@ -1,0 +1,1739 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TagBox — 이미지 태그 검색</title>
+
+<style>
+:root{
+  color-scheme:light dark
+}
+
+*{
+  box-sizing:border-box
+}
+
+html,
+body{
+  margin:0;
+  min-height:100%;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif
+}
+
+body{
+  background:#eef2f7;
+  color:#18212f
+}
+
+.app{
+  min-height:100vh;
+  background:light-dark(#f6f8fb,#0f141b);
+  color:light-dark(#18212f,#e9eef5);
+  padding:28px clamp(16px,4vw,56px)
+}
+
+.header{
+  max-width:1180px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px
+}
+
+.logo{
+  width:44px;
+  height:44px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#6d5dfc,#36cfc9);
+  display:grid;
+  place-items:center;
+  color:white;
+  font-weight:900;
+  font-size:20px
+}
+
+.brand h1{
+  font-size:21px;
+  margin:0
+}
+
+.brand p{
+  margin:2px 0 0;
+  color:#748093;
+  font-size:13px
+}
+
+.stats{
+  font-size:13px;
+  color:#748093
+}
+
+.panel{
+  max-width:1180px;
+  margin:24px auto 0;
+  background:light-dark(#fff,#171d26);
+  border:1px solid light-dark(#e1e7ef,#283241);
+  border-radius:22px;
+  padding:18px;
+  box-shadow:0 12px 35px rgba(0,0,0,.07)
+}
+
+.search{
+  display:flex;
+  gap:10px
+}
+
+.search input{
+  flex:1;
+  font-size:16px;
+  padding:14px 16px;
+  border:1px solid light-dark(#d7dee8,#334052);
+  background:light-dark(#fafbfd,#111720);
+  color:inherit;
+  border-radius:14px;
+  outline:none
+}
+
+.search input:focus{
+  border-color:#6d5dfc;
+  box-shadow:0 0 0 3px rgba(109,93,252,.14)
+}
+
+button{
+  border:0;
+  border-radius:13px;
+  padding:12px 16px;
+  font-weight:750;
+  cursor:pointer;
+  background:#6d5dfc;
+  color:white
+}
+
+button:hover{
+  filter:brightness(.96)
+}
+
+.secondary{
+  background:light-dark(#edf0f5,#242c38);
+  color:inherit
+}
+
+.danger{
+  background:#d94b4b;
+  color:white
+}
+
+.danger:hover{
+  background:#c63d3d;
+  filter:none
+}
+
+.toolbar{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  margin-top:14px;
+  flex-wrap:wrap
+}
+
+.chips{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap
+}
+
+.chip{
+  padding:7px 10px;
+  border-radius:999px;
+  background:light-dark(#f0f2ff,#24223b);
+  color:light-dark(#5142d4,#bdb6ff);
+  font-size:12px;
+  cursor:pointer
+}
+
+.upload{
+  position:relative;
+  overflow:hidden
+}
+
+.upload input{
+  position:absolute;
+  inset:0;
+  opacity:0;
+  cursor:pointer
+}
+
+.grid{
+  max-width:1180px;
+  margin:20px auto;
+  display:grid;
+  grid-template-columns:
+    repeat(auto-fill,minmax(210px,1fr));
+  gap:16px
+}
+
+.card{
+  overflow:hidden;
+  border:1px solid light-dark(#e1e7ef,#283241);
+  background:light-dark(#fff,#171d26);
+  border-radius:18px;
+  box-shadow:0 7px 20px rgba(0,0,0,.05);
+  cursor:pointer
+}
+
+.card:hover{
+  transform:translateY(-2px);
+  transition:.15s ease
+}
+
+.thumb{
+  aspect-ratio:4/3;
+  background:light-dark(#eef2f7,#111720);
+  display:grid;
+  place-items:center;
+  overflow:hidden
+}
+
+.thumb img{
+  width:100%;
+  height:100%;
+  object-fit:cover
+}
+
+.placeholder{
+  font-size:42px;
+  color:#aab3c1
+}
+
+.body{
+  padding:13px
+}
+
+.name{
+  font-weight:800;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis
+}
+
+.meta{
+  font-size:12px;
+  color:#7c8797;
+  margin:4px 0 10px
+}
+
+.tags{
+  display:flex;
+  gap:5px;
+  flex-wrap:wrap
+}
+
+.tag{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-size:11px;
+  padding:5px 7px;
+  border-radius:8px;
+  background:light-dark(#f0f2f6,#222a35);
+  color:inherit
+}
+
+.tag button{
+  border:0;
+  background:transparent;
+  color:inherit;
+  padding:0;
+  margin:0;
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  opacity:.65
+}
+
+.tag button:hover{
+  opacity:1;
+  filter:none
+}
+
+.empty{
+  grid-column:1/-1;
+  text-align:center;
+  padding:70px 20px;
+  color:#7b8797
+}
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.58);
+  display:none;
+  place-items:center;
+  padding:20px;
+  z-index:10
+}
+
+.modal.open{
+  display:grid
+}
+
+.dialog{
+  width:min(760px,100%);
+  max-height:90vh;
+  overflow:auto;
+  background:light-dark(#fff,#171d26);
+  border-radius:22px;
+  padding:18px
+}
+
+.image-viewer{
+  position:relative;
+  width:100%;
+  height:min(62vh,620px);
+  min-height:320px;
+  overflow:hidden;
+  border-radius:14px;
+  background:#0b0e12;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:grab;
+  user-select:none;
+}
+
+.image-viewer.dragging{
+  cursor:grabbing;
+}
+
+.big{
+  max-width:none;
+  max-height:none;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  border-radius:14px;
+  transform-origin:center center;
+  will-change:transform;
+  user-select:none;
+  -webkit-user-drag:none;
+  pointer-events:none;
+}
+
+.zoom-controls{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  margin-top:10px;
+}
+
+.zoom-controls button{
+  min-width:42px;
+  padding:9px 12px;
+}
+
+.zoom-level{
+  min-width:58px;
+  text-align:center;
+  font-size:12px;
+  color:#7d8897;
+}
+
+.formrow{
+  display:flex;
+  gap:8px;
+  margin-top:12px
+}
+
+.formrow input{
+  flex:1;
+  padding:11px 12px;
+  border-radius:11px;
+  border:1px solid light-dark(#d7dee8,#334052);
+  background:transparent;
+  color:inherit;
+  outline:none
+}
+
+.formrow input:focus{
+  border-color:#6d5dfc;
+  box-shadow:0 0 0 3px rgba(109,93,252,.12)
+}
+
+.actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:14px
+}
+
+.hint{
+  font-size:12px;
+  color:#7d8897;
+  margin-top:8px
+}
+
+.modal-tags{
+  margin-top:12px;
+  min-height:28px
+}
+
+@media(max-width:600px){
+
+  .app{
+    padding:18px 12px
+  }
+
+  .search{
+    flex-direction:column
+  }
+
+  .grid{
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+    gap:10px
+  }
+
+  .panel{
+    padding:13px
+  }
+
+  .header{
+    align-items:flex-start
+  }
+
+  .stats{
+    display:none
+  }
+
+  .formrow{
+    flex-direction:column
+  }
+
+}
+</style>
+</head>
+
+<body>
+<div id="modeBanner" role="status" style="max-width:1180px;margin:20px auto 0;padding:14px 20px;border:1px solid #526075;border-radius:12px;color:#cbd5e1"></div>
+
+<div class="app" id="app">
+
+<header class="header">
+
+  <div class="brand">
+
+    <div class="logo">
+      #
+    </div>
+
+    <div>
+
+      <h1>
+        TagBox
+      </h1>
+
+      <p>
+        이미지를 태그로 정리하고 빠르게 찾기
+      </p>
+
+    </div>
+
+  </div>
+
+  <div
+    class="stats"
+    id="stats"
+  ></div>
+
+</header>
+
+
+<section class="panel">
+
+  <div class="search">
+
+    <input
+      id="search"
+      placeholder="태그, 이미지 이름으로 검색… (예: 고양이 실내)"
+    >
+
+    <button
+      id="clear"
+      class="secondary"
+    >
+      초기화
+    </button>
+
+    <label class="upload">
+
+      <button>
+        ＋ 이미지 추가
+      </button>
+
+      <input
+        id="file"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+        multiple
+      >
+
+    </label>
+
+  </div>
+
+
+  <div class="toolbar">
+
+    <div
+      class="chips"
+      id="chips"
+    ></div>
+
+    <button
+      id="demo"
+      class="secondary"
+    >
+      새로고침
+    </button>
+
+  </div>
+
+
+  <div class="hint">
+    이미지를 추가하면 태그를 입력할 수 있습니다.
+    태그를 추가하거나 지우면 자동 저장됩니다.
+  </div>
+
+</section>
+
+
+<main
+  class="grid"
+  id="grid"
+></main>
+
+
+<!-- 이미지 크게 보기 -->
+
+<div
+  class="modal"
+  id="modal"
+>
+
+  <div class="dialog">
+
+    <button
+      id="close"
+      class="secondary"
+      style="float:right"
+    >
+      닫기
+    </button>
+
+
+    <div class="image-viewer" id="imageViewer">
+      <img
+        id="big"
+        class="big"
+        draggable="false"
+      >
+    </div>
+
+    <div class="zoom-controls">
+      <button id="zoomOut" class="secondary" type="button">−</button>
+      <button id="zoomReset" class="secondary" type="button">맞춤</button>
+      <span id="zoomLevel" class="zoom-level">100%</span>
+      <button id="zoomIn" class="secondary" type="button">＋</button>
+    </div>
+
+
+    <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
+<!-- 현재 태그 -->
+
+    <div
+      class="modal-tags"
+      id="modalTags"
+    ></div>
+
+
+    <!-- 태그 추가 -->
+
+    <div class="formrow">
+
+      <input
+        id="tagInput"
+        placeholder="새 태그 입력 (쉼표로 여러 개)"
+      >
+
+      <button
+        id="addTag"
+      >
+        태그 추가
+      </button>
+
+    </div>
+
+
+    <div class="hint">
+      여러 개를 넣으려면 쉼표로 구분하세요.
+      예: 고양이, 귀여움, 실내
+    </div>
+
+
+    <!-- 저장 -->
+
+    <div class="actions">
+
+      <button
+        id="saveTags"
+      >
+        태그 저장
+      </button>
+
+    </div>
+
+
+    <!-- 이미지 삭제 -->
+
+    <div class="actions">
+
+      <button
+        id="deleteImage"
+        class="danger"
+      >
+        이미지 삭제
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script src="config.js"></script>
+<script src="backend.js"></script>
+<script>
+
+const $ = id =>
+  document.getElementById(id);
+
+
+let items = [];
+
+let current = null;
+
+// 이미지 확대/이동 상태
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+let dragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let startPanX = 0;
+let startPanY = 0;
+
+
+// =========================
+// 데이터 불러오기
+// =========================
+
+async function load(){
+
+  try{
+
+    const saved =
+      await window.tagboxAPI.loadData();
+
+
+    items =
+      saved.map(x => ({
+
+        id:x.id,
+
+        name:x.name,
+
+        fileName:x.fileName,
+
+        tags:
+          Array.isArray(x.tags)
+            ? [...x.tags]
+            : [],
+
+        src:x.path
+
+      }));
+
+  }catch(e){
+
+    alert('목록을 불러오지 못했습니다: ' + (e.message || e));
+    console.error(
+      '데이터 불러오기 실패:',
+      e
+    );
+
+    // 불러오기에 실패했다고
+    // 기존 화면 데이터를 지우지 않음
+    if(!Array.isArray(items)){
+      items=[];
+    }
+
+  }
+
+  render();
+
+}
+
+
+// =========================
+// 화면 그리기
+// =========================
+
+function render(){
+
+  const q =
+    $('search')
+      .value
+      .trim()
+      .toLowerCase();
+
+
+  const terms =
+    q
+      .split(/\s+/)
+      .filter(Boolean);
+
+
+  const filtered =
+    items.filter(x => {
+
+      const hay =
+        (
+          x.name +
+          ' ' +
+          x.tags.join(' ')
+        ).toLowerCase();
+
+
+      return terms.every(t =>
+        hay.includes(t)
+      );
+
+    });
+
+
+  const allTags = [
+    ...new Set(
+      items.flatMap(x =>
+        Array.isArray(x.tags)
+          ? x.tags
+          : []
+      )
+    )
+  ];
+
+
+  $('stats').textContent =
+    `${items.length}개 이미지 · ${allTags.length}개 태그`;
+
+
+  $('grid').innerHTML =
+    filtered.length
+
+      ? filtered.map(x => `
+
+        <article
+          class="card"
+          data-id="${esc(x.id)}"
+        >
+
+          <div class="thumb">
+
+            ${
+              x.src
+
+                ? `
+                  <img
+                    src="${esc(x.src)}" loading="lazy" decoding="async"
+                    alt=""
+                  >
+                `
+
+                : `
+                  <div class="placeholder">
+                    🖼️
+                  </div>
+                `
+            }
+
+          </div>
+
+
+          <div class="body">
+
+            <div class="name">
+              ${esc(x.name)}
+            </div>
+
+
+            <div class="tags">
+
+              ${
+                x.tags
+                  .map(t =>
+                    `
+                    <span class="tag">
+                      #${esc(t)}
+                    </span>
+                    `
+                  )
+                  .join('')
+              }
+
+            </div>
+
+          </div>
+
+        </article>
+
+      `).join('')
+
+      :
+
+      `
+
+        <div class="empty">
+
+          <div style="font-size:46px">
+            🗂️
+          </div>
+
+          <h3>
+            검색 결과가 없어요
+          </h3>
+
+          <p>
+            이미지를 추가하거나
+            검색어를 변경해보세요.
+          </p>
+
+        </div>
+
+      `;
+
+
+  // =========================
+  // 태그 개수
+  // =========================
+
+  const counts = {};
+
+
+  items
+    .flatMap(x =>
+      Array.isArray(x.tags)
+        ? x.tags
+        : []
+    )
+    .forEach(t => {
+
+      counts[t] =
+        (counts[t] || 0) + 1;
+
+    });
+
+
+  $('chips').innerHTML =
+
+    Object.entries(counts)
+
+      .sort(
+        (a,b) =>
+          b[1] - a[1]
+      )
+
+      .slice(0,12)
+
+      .map(([t,n]) =>
+
+        `
+        <span
+          class="chip"
+          data-tag="${esc(t)}"
+        >
+          #${esc(t)} · ${n}
+        </span>
+        `
+
+      )
+
+      .join('');
+
+
+  // =========================
+  // 카드 클릭
+  // =========================
+
+  document
+    .querySelectorAll('.card')
+    .forEach(card => {
+
+      card.onclick = () =>
+        openItem(
+          card.dataset.id
+        );
+
+    });
+
+
+  // =========================
+  // 태그 클릭
+  // =========================
+
+  document
+    .querySelectorAll('.chip')
+    .forEach(chip => {
+
+      chip.onclick = () => {
+
+        $('search').value =
+          chip.dataset.tag;
+
+        render();
+
+      };
+
+    });
+
+}
+
+
+// =========================
+// HTML 문자 처리
+// =========================
+
+function esc(s){
+
+  return String(s).replace(
+    /[&<>"']/g,
+
+    c => ({
+
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+
+    }[c])
+
+  );
+
+}
+
+
+// =========================
+// 이미지 열기
+// =========================
+
+$('shareItem').onclick = async () => {
+  if (!current) return;
+  if (!window.tagboxShared) { alert('현재는 브라우저 체험 모드입니다. 공동 저장 서버를 연결한 뒤 공유할 수 있습니다.'); return; }
+  const link = new URL(location.href); link.hash = current.id;
+  try { await navigator.clipboard.writeText(link.href); alert('공유 링크를 복사했습니다.'); }
+  catch { prompt('공유 링크', link.href); }
+};
+function openItem(id){
+
+  current =
+    items.find(
+      x => x.id === id
+    );
+
+
+  if(!current){
+    return;
+  }
+
+
+  // 이미지
+  $('big').src = current.src || '';
+
+  $('big').style.display =
+    current.src
+      ? 'block'
+      : 'none';
+
+  resetZoom();
+
+
+  // 태그 표시
+
+  renderModalTags();
+
+
+  // 입력창은 항상 비워둠
+
+  $('tagInput').value = '';
+
+
+  // 모달 열기
+
+  $('modal')
+    .classList
+    .add('open');
+
+}
+
+
+// =========================
+// 모달 태그 표시
+// =========================
+
+function renderModalTags(){
+
+  if(!current){
+    return;
+  }
+
+
+  const tags =
+    Array.isArray(current.tags)
+      ? current.tags
+      : [];
+
+
+  $('modalTags').innerHTML =
+
+    tags.length
+
+      ? tags.map((t,index) =>
+
+          `
+          <span class="tag">
+
+            #${esc(t)}
+
+            <button
+              type="button"
+              class="remove-tag"
+              data-index="${index}"
+              title="태그 삭제"
+            >
+              ×
+            </button>
+
+          </span>
+          `
+
+        ).join('')
+
+      : `
+          <span
+            class="hint"
+          >
+            등록된 태그가 없습니다.
+          </span>
+        `;
+
+
+  // 태그 삭제
+
+  document
+    .querySelectorAll('.remove-tag')
+    .forEach(button => {
+
+      button.onclick = e => {
+
+        // 카드 클릭 이벤트가
+        // 같이 실행되지 않도록 함
+        e.stopPropagation();
+
+
+        const index =
+          Number(
+            button.dataset.index
+          );
+
+
+        if(
+          Number.isInteger(index) &&
+          index >= 0 &&
+          index < current.tags.length
+        ){
+
+          current.tags.splice(
+            index,
+            1
+          );
+
+
+          // 전체 목록에도 반영
+
+          const item =
+            items.find(
+              x => x.id === current.id
+            );
+
+
+          if(item){
+            item.tags = [
+              ...current.tags
+            ];
+          }
+
+
+          renderModalTags();
+          render();
+
+          // 태그 삭제도 즉시 저장
+          saveCurrentTags().catch(error => {
+            console.error('태그 자동 저장 실패:', error);
+            alert(`태그 저장에 실패했습니다.\n\n${error.message || error}`);
+          });
+
+        }
+
+      };
+
+    });
+
+}
+
+
+// =========================
+// 검색
+// =========================
+
+$('search').oninput =
+  render;
+
+
+$('clear').onclick = () => {
+
+  $('search').value = '';
+
+  render();
+
+};
+
+
+
+// =========================
+// 이미지 확대 / 축소 / 이동
+// 원본 파일은 수정하지 않고 화면 표시만 변경합니다.
+// =========================
+
+function updateZoom(){
+  const img = $('big');
+
+  img.style.transform =
+    `translate(${panX}px, ${panY}px) scale(${zoom})`;
+
+  $('zoomLevel').textContent =
+    `${Math.round(zoom * 100)}%`;
+}
+
+function resetZoom(){
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+  updateZoom();
+}
+
+function changeZoom(amount){
+  const next = Math.min(
+    5,
+    Math.max(
+      0.1,
+      zoom + amount
+    )
+  );
+
+  zoom = Math.round(next * 10) / 10;
+  updateZoom();
+}
+
+$('zoomIn').onclick = () => {
+  changeZoom(0.2);
+};
+
+$('zoomOut').onclick = () => {
+  changeZoom(-0.2);
+};
+
+$('zoomReset').onclick = () => {
+  resetZoom();
+};
+
+$('imageViewer').addEventListener(
+  'wheel',
+  e => {
+    e.preventDefault();
+
+    changeZoom(
+      e.deltaY < 0
+        ? 0.2
+        : -0.2
+    );
+  },
+  { passive:false }
+);
+
+$('imageViewer').addEventListener(
+  'pointerdown',
+  e => {
+    if(e.button !== 0){
+      return;
+    }
+
+    dragging = true;
+
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+
+    startPanX = panX;
+    startPanY = panY;
+
+    $('imageViewer').classList.add('dragging');
+    $('imageViewer').setPointerCapture(e.pointerId);
+  }
+);
+
+$('imageViewer').addEventListener(
+  'pointermove',
+  e => {
+    if(!dragging){
+      return;
+    }
+
+    panX =
+      startPanX +
+      (e.clientX - dragStartX);
+
+    panY =
+      startPanY +
+      (e.clientY - dragStartY);
+
+    updateZoom();
+  }
+);
+
+function stopDragging(e){
+  if(!dragging){
+    return;
+  }
+
+  dragging = false;
+
+  $('imageViewer').classList.remove('dragging');
+
+  try{
+    $('imageViewer').releasePointerCapture(
+      e.pointerId
+    );
+  }catch{}
+}
+
+$('imageViewer').addEventListener(
+  'pointerup',
+  stopDragging
+);
+
+$('imageViewer').addEventListener(
+  'pointercancel',
+  stopDragging
+);
+
+// 더블클릭하면 확대/맞춤 전환
+$('imageViewer').addEventListener(
+  'dblclick',
+  () => {
+    if(zoom === 1){
+      zoom = 2;
+      panX = 0;
+      panY = 0;
+      updateZoom();
+    }else{
+      resetZoom();
+    }
+  }
+);
+
+// =========================
+// 모달 닫기
+// =========================
+
+$('close').onclick = () => {
+
+  $('modal')
+    .classList
+    .remove('open');
+
+  current = null;
+
+};
+
+
+$('modal').onclick = e => {
+
+  if(
+    e.target === $('modal')
+  ){
+
+    $('modal')
+      .classList
+      .remove('open');
+
+    current = null;
+
+  }
+
+};
+
+
+// =========================
+// 태그 자동 저장
+// =========================
+
+async function saveCurrentTags(){
+  if(!current){
+    return false;
+  }
+
+  const tags = [
+    ...new Set(
+      current.tags
+        .map(x => x.trim())
+        .filter(Boolean)
+    )
+  ];
+
+  const target = current;
+  const result = await window.tagboxAPI.saveTags(
+    target.id,
+    tags
+  );
+
+  if(!result){
+    throw new Error('태그를 저장하지 못했습니다.');
+  }
+
+  const index = items.findIndex(
+    x => x.id === target.id
+  );
+
+  if(index !== -1){
+    items[index].tags = [...tags];
+  }
+
+  target.tags = [...tags];
+  return true;
+}
+
+
+// =========================
+// 태그 추가
+// =========================
+
+$('addTag').onclick = async () => {
+
+  if(!current){
+    return;
+  }
+
+
+  const value =
+    $('tagInput')
+      .value
+      .trim();
+
+
+  if(!value){
+    return;
+  }
+
+
+  // 쉼표로 여러 태그 입력 가능
+
+  const newTags =
+    value
+      .split(',')
+      .map(x => x.trim())
+      .filter(Boolean);
+
+
+  // 기존 태그 + 새 태그
+  // 중복 제거
+
+  current.tags = [
+    ...new Set([
+      ...current.tags,
+      ...newTags
+    ])
+  ];
+
+
+  // 전체 목록에도 반영
+
+  const item =
+    items.find(
+      x => x.id === current.id
+    );
+
+
+  if(item){
+
+    item.tags = [
+      ...current.tags
+    ];
+
+  }
+
+
+  // 입력창 비우기
+
+  $('tagInput').value = '';
+
+
+  // 태그 화면 갱신
+  renderModalTags();
+  render();
+
+  // 태그 추가 즉시 저장
+  try{
+    await saveCurrentTags();
+  }catch(error){
+    console.error('태그 자동 저장 실패:', error);
+    alert(`태그 저장에 실패했습니다.\n\n${error.message || error}`);
+  }
+
+};
+
+
+// Enter 키로 태그 추가
+
+$('tagInput').addEventListener(
+  'keydown',
+  e => {
+
+    if(e.key === 'Enter'){
+
+      e.preventDefault();
+
+      $('addTag').click();
+
+    }
+
+  }
+);
+
+
+// =========================
+// 태그 저장
+// =========================
+
+$('saveTags').onclick =
+  async () => {
+
+    if(!current){
+      return;
+    }
+
+    try{
+      await saveCurrentTags();
+
+      render();
+
+      $('modal')
+        .classList
+        .remove('open');
+
+      current = null;
+
+    }catch(error){
+
+      console.error(
+        '태그 저장 실패:',
+        error
+      );
+
+      alert(
+        `태그 저장에 실패했습니다.\n\n${
+          error.message || error
+        }`
+      );
+
+    }
+
+  };
+
+
+// =========================
+// 이미지 삭제
+// =========================
+
+$('deleteImage').onclick =
+  async () => {
+
+    if(!current){
+      return;
+    }
+
+
+    const ok =
+      confirm(
+        '이 이미지를 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.'
+      );
+
+
+    if(!ok){
+      return;
+    }
+
+
+    try{
+
+      const result =
+        await window.tagboxAPI.deleteImage(
+          current.id
+        );
+
+
+      if(!result){
+
+        alert(
+          '이미지를 삭제하지 못했습니다.'
+        );
+
+        return;
+
+      }
+
+
+      // 화면에서도 삭제
+
+      items =
+        items.filter(
+          x => x.id !== current.id
+        );
+
+
+      current = null;
+
+
+      $('modal')
+        .classList
+        .remove('open');
+
+
+      render();
+
+
+    }catch(error){
+
+      console.error(
+        '이미지 삭제 실패:',
+        error
+      );
+
+
+      alert(
+        `이미지를 삭제하지 못했습니다.\n\n${
+          error.message || error
+        }`
+      );
+
+    }
+
+  };
+
+
+// =========================
+// 이미지 추가
+// =========================
+
+$('file').onchange =
+  async e => {
+
+    const files =
+      [...e.target.files];
+
+
+    if(files.length === 0){
+      return;
+    }
+
+
+    for(
+      const file of files
+    ){
+
+      try{
+
+        console.log(
+          '이미지 저장 시작:',
+          file.name
+        );
+
+
+        if (file.size > 10 * 1024 * 1024) throw new Error('한 장당 10MB 이하로 올려주세요.');
+        if (!['image/png','image/jpeg','image/webp','image/gif','image/avif'].includes(file.type)) throw new Error('PNG, JPG, WebP, GIF, AVIF 이미지만 지원합니다.');
+        const base64 =
+          await fileToBase64(
+            file
+          );
+
+
+        const id =
+          crypto.randomUUID();
+
+
+        const result =
+          await window.tagboxAPI.saveImage({
+
+            id:id,
+
+            name:
+              file.name.replace(
+                /\.[^.]+$/,
+                ''
+              ),
+
+            type:file.type,
+
+            base64:base64
+
+          });
+
+
+        console.log(
+          '이미지 저장 완료:',
+          result
+        );
+
+
+        items.unshift({
+
+          id:result.id,
+
+          name:result.name,
+
+          fileName:
+            result.fileName,
+
+          tags:[],
+
+          src:result.path
+
+        });
+
+
+      }catch(error){
+
+        console.error(
+          '이미지 저장 실패:',
+          error
+        );
+
+
+        alert(
+          `이미지를 저장하지 못했습니다.\n\n${
+            file.name
+          }\n\n${
+            error.message || error
+          }`
+        );
+
+      }
+
+    }
+
+
+    render();
+
+
+    // 파일 선택 초기화
+
+    e.target.value = '';
+
+  };
+
+
+// =========================
+// 이미지 → Base64
+// =========================
+
+function fileToBase64(file){
+
+  return new Promise(
+    (resolve,reject) => {
+
+      const reader =
+        new FileReader();
+
+
+      reader.onload = () => {
+
+        const result =
+          reader.result;
+
+
+        const base64 =
+          result.split(',')[1];
+
+
+        resolve(base64);
+
+      };
+
+
+      reader.onerror =
+        reject;
+
+
+      reader.readAsDataURL(
+        file
+      );
+
+    }
+  );
+
+}
+
+
+// =========================
+// 샘플 데이터
+// =========================
+
+$('demo').onclick = () => load();
+
+// =========================
+// 시작
+// =========================
+
+$('modeBanner').textContent = window.tagboxShared
+  ? '공동 라이브러리 · 누구나 등록하고 태그를 편집할 수 있습니다. 삭제는 모두에게 반영됩니다.'
+  : '브라우저 체험 모드 · 이 기기에만 저장됩니다. GitHub 공동 저장 서버는 아직 연결되지 않았습니다.';
+load().then(() => { if (location.hash) openItem(location.hash.slice(1)); });
+window.addEventListener('hashchange', () => openItem(location.hash.slice(1)));
+</script>
+
+</body>
+</html>
