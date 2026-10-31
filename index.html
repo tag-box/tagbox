@@ -435,7 +435,7 @@ body:has(.modal.open){
 }
 
 .modal-tags{
-  margin-top:12px;
+  margin:0 0 14px;
   min-height:28px
 }
 
@@ -655,28 +655,10 @@ body:has(.modal.open){
 
     <aside class="side">
 
-    <button id="close" class="secondary" type="button" style="width:100%">닫기</button>
-
-    <div class="zoom-controls">
-      <button id="zoomOut" class="secondary" type="button">−</button>
-      <button id="zoomReset" class="secondary" type="button">맞춤</button>
-      <span id="zoomLevel" class="zoom-level">100%</span>
-      <button id="zoomIn" class="secondary" type="button">＋</button>
-    </div>
-
-    <div class="actions" style="justify-content:flex-start">
-      <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
-      <button id="openOriginal" class="secondary" type="button">원본 열기</button>
-    </div>
-<!-- 현재 태그 -->
-
     <div
       class="modal-tags"
       id="modalTags"
     ></div>
-
-
-    <!-- 태그 추가 -->
 
     <div class="formrow">
 
@@ -693,39 +675,30 @@ body:has(.modal.open){
 
     </div>
 
-
     <div class="hint">
       여러 개를 넣으려면 쉼표로 구분하세요.
       예: 고양이, 귀여움, 실내 · 태그 추가는 로그인 후 누구나 가능하고,
       수정·삭제는 그 태그를 추가한 계정에서만 됩니다.
     </div>
 
-
-    <!-- 저장 -->
-
-    <div class="actions">
-
-      <button
-        id="saveTags"
-      >
-        태그 저장
-      </button>
-
+    <div class="zoom-controls">
+      <button id="zoomOut" class="secondary" type="button">−</button>
+      <button id="zoomReset" class="secondary" type="button">맞춤</button>
+      <span id="zoomLevel" class="zoom-level">100%</span>
+      <button id="zoomIn" class="secondary" type="button">＋</button>
     </div>
 
-
-    <!-- 이미지 삭제 -->
+    <div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+      <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
+      <button id="openOriginal" class="secondary" type="button">원본 열기</button>
+      <button id="saveTags">태그 저장</button>
+    </div>
 
     <div class="actions">
-
-      <button
-        id="deleteImage"
-        class="danger"
-      >
-        이미지 삭제
-      </button>
-
+      <button id="deleteImage" class="danger">이미지 삭제</button>
     </div>
+
+    <button id="close" class="secondary" type="button" style="width:100%;margin-top:14px">닫기</button>
 
     </aside>
 
