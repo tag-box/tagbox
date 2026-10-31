@@ -1231,6 +1231,13 @@ function openItem(id){
   }
 
 
+  // 이미지 삭제는 관리자만
+  $('deleteImage').style.display =
+    (!window.tagboxShared || Boolean(session && session.adm))
+      ? 'inline-block'
+      : 'none';
+
+
   // 이미지
   $('big').src = current.src || '';
 
@@ -1788,6 +1795,11 @@ $('deleteImage').onclick =
   async () => {
 
     if(!current){
+      return;
+    }
+
+    if(window.tagboxShared && !(session && session.adm)){
+      alert('이미지 삭제는 관리자만 할 수 있습니다.');
       return;
     }
 

@@ -190,6 +190,11 @@ export default {
         session = await readToken(request, env);
         if (!session) throw fail('태그를 바꾸려면 로그인이 필요합니다.', 401);
       }
+      if (request.method === 'DELETE') {
+        session = await readToken(request, env);
+        if (!session) throw fail('이미지를 삭제하려면 로그인이 필요합니다.', 401);
+        if (!session.adm) throw fail('이미지 삭제는 관리자만 할 수 있습니다.', 403);
+      }
       // Compare-and-swap branch updates prevent concurrent edits losing records.
       for (let attempt = 0; attempt < 4; attempt++) {
         const ref = await gh(`git/ref/heads/${encodeURIComponent(branch)}`);

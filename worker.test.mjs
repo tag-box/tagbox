@@ -106,3 +106,11 @@ test('expired or forged sessions are rejected', async () => {
   const forged = (await tokenFor({ uid: '111', login: 'alice', adm: true, exp: Date.now() + 60000 })).replace(/\.[^.]+$/, '.bad');
   assert.equal((await worker.fetch(authReq('PATCH', { id: '11111111-1111-4111-8111-111111111111', tags: [] }, forged), envAuth)).status, 401);
 });
+
+test('only admins may delete images', async () => {
+  const envAuth = { GITHUB_TOKEN: 'test-only', SESSION_SECRET: 'test-secret' };
+  const alice = await tokenFor({ uid: '111', login: 'alice', adm: false, exp: Date.now() + 60000 });
+  const id = '11111111-1111-4111-8111-111111111111';
+  assert.equal((await worker.fetch(authReq('DELETE', { id }), envAuth)).status, 401);
+  assert.equal((await worker.fetch(authReq('DELETE', { id }, alice), envAuth)).status, 403);
+});
