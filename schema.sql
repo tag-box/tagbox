@@ -8,3 +8,13 @@ CREATE TABLE IF NOT EXISTS users (
   admin INTEGER NOT NULL DEFAULT 0,
   created INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT NOT NULL,
+  login TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS messages_created ON messages(created);

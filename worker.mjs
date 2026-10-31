@@ -140,6 +140,31 @@ export default {
         return reply({ uid: session.uid, login: session.login, adm: Boolean(session.adm) });
       }
 
+      if (url.pathname === '/api/chat') {
+        if (!env.DB) throw fail('채팅 저장소가 설정되지 않았습니다.', 503);
+        if (request.method === 'GET') {
+          const after = Number(url.searchParams.get('after')) || 0;
+          const rows = await env.DB.prepare(
+            'SELECT id, login, body, created FROM messages WHERE id > ? ORDER BY id DESC LIMIT 60'
+          ).bind(after).all();
+          return reply((rows.results || []).reverse());
+        }
+        if (request.method === 'POST') {
+          const session = await readToken(request, env);
+          if (!session) throw fail('채팅을 보내려면 로그인이 필요합니다.', 401);
+          const input = await bodyJSON(request);
+          const body = String(input.body || '').trim();
+          if (!body || body.length > 500) throw fail('메시지는 1~500자로 입력해주세요.');
+          const last = await env.DB.prepare('SELECT created FROM messages WHERE uid = ? ORDER BY id DESC LIMIT 1').bind(session.uid).first();
+          if (last && Date.now() - Number(last.created) < 2000) throw fail('너무 빨리 보냈습니다. 잠시 후 다시 시도해주세요.', 429);
+          const created = Date.now();
+          const inserted = await env.DB.prepare('INSERT INTO messages (uid, login, body, created) VALUES (?, ?, ?, ?)')
+            .bind(session.uid, session.login, body, created).run();
+          return reply({ id: inserted.meta.last_row_id, login: session.login, body, created });
+        }
+        return reply({ error: 'Method not allowed' }, 405);
+      }
+
       if (url.pathname !== '/api/images') return reply({ error: 'Not found' }, 404);
       if (!['GET','POST','PATCH','DELETE'].includes(request.method)) return reply({ error: 'Method not allowed' }, 405);
       if (!env.GITHUB_TOKEN) throw fail('GitHub 저장 서버 설정이 아직 완료되지 않았습니다.', 503);
