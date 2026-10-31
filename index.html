@@ -1449,7 +1449,46 @@ function openItem(id){
     .classList
     .add('open');
 
+
+  // 뒤로가기로 닫을 수 있도록 기록 추가
+
+  if(!(history.state && history.state.tagbox === id)){
+    history.pushState(
+      { tagbox:id },
+      '',
+      `#${encodeURIComponent(id)}`
+    );
+  }
+
 }
+
+function closeItem(){
+  $('modal')
+    .classList
+    .remove('open');
+
+  current = null;
+}
+
+function requestCloseItem(){
+  if(history.state && history.state.tagbox){
+    history.back();
+    return;
+  }
+  closeItem();
+}
+
+window.addEventListener('popstate', () => {
+  const state = history.state;
+
+  if(state && state.tagbox){
+    if(!$('modal').classList.contains('open')){
+      openItem(state.tagbox);
+    }
+  }else if($('modal').classList.contains('open')){
+    closeItem();
+  }
+});
 
 
 // =========================
@@ -1763,13 +1802,7 @@ $('imageViewer').addEventListener(
 // =========================
 
 $('close').onclick = () => {
-
-  $('modal')
-    .classList
-    .remove('open');
-
-  current = null;
-
+  requestCloseItem();
 };
 
 
@@ -1779,11 +1812,7 @@ $('modal').onclick = e => {
     e.target === $('modal')
   ){
 
-    $('modal')
-      .classList
-      .remove('open');
-
-    current = null;
+    requestCloseItem();
 
   }
 
@@ -2295,6 +2324,8 @@ window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1);
   if(hash){
     openItem(hash);
+  }else if($('modal').classList.contains('open')){
+    closeItem();
   }
 });
 </script>
