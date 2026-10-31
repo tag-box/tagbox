@@ -5,9 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TagBox — 이미지 태그 검색</title>
 
+<script>
+try{
+  document.documentElement.dataset.theme =
+    localStorage.getItem('tagbox-theme') || 'dark';
+}catch{
+  document.documentElement.dataset.theme = 'dark';
+}
+</script>
+
 <style>
 :root{
-  color-scheme:light dark
+  color-scheme:dark
+}
+
+:root[data-theme="light"]{
+  color-scheme:light
 }
 
 *{
@@ -28,8 +41,18 @@ body{
 }
 
 body{
-  background:#eef2f7;
-  color:#18212f
+  background:light-dark(#eef2f7,#0b0e12);
+  color:light-dark(#18212f,#e9eef5)
+}
+
+#modeBanner{
+  max-width:1180px;
+  margin:20px auto 0;
+  padding:14px 20px;
+  border:1px solid light-dark(#d7dee8,#526075);
+  border-radius:12px;
+  background:light-dark(#fff,#111720);
+  color:light-dark(#475569,#cbd5e1)
 }
 
 .app{
@@ -537,7 +560,7 @@ body:has(.modal.open){
 </head>
 
 <body>
-<div id="modeBanner" role="status" style="max-width:1180px;margin:20px auto 0;padding:14px 20px;border:1px solid #526075;border-radius:12px;color:#cbd5e1"></div>
+<div id="modeBanner" role="status"></div>
 
 <div class="app" id="app">
 
@@ -565,6 +588,7 @@ body:has(.modal.open){
 
   <div class="header-right">
     <div class="stats" id="stats"></div>
+    <button id="themeBtn" class="secondary" type="button">라이트 모드</button>
     <button id="authBtn" class="secondary" type="button" style="display:none">로그인 / 회원가입</button>
   </div>
 
@@ -871,6 +895,44 @@ function renderAuth(){
     button.onclick = openAuth;
   }
 }
+
+// =========================
+// 화이트 / 다크 테마
+// =========================
+
+const THEME_KEY = 'tagbox-theme';
+
+function currentTheme(){
+  return document.documentElement.dataset.theme === 'light'
+    ? 'light'
+    : 'dark';
+}
+
+function renderThemeButton(){
+  $('themeBtn').textContent =
+    currentTheme() === 'light'
+      ? '다크 모드'
+      : '라이트 모드';
+}
+
+function setTheme(theme){
+  document.documentElement.dataset.theme = theme;
+  try{
+    localStorage.setItem(THEME_KEY, theme);
+  }catch{}
+  renderThemeButton();
+}
+
+$('themeBtn').onclick = () => {
+  setTheme(
+    currentTheme() === 'light'
+      ? 'dark'
+      : 'light'
+  );
+};
+
+renderThemeButton();
+
 
 function openAuth(){
   $('authUser').value = '';
