@@ -51,3 +51,58 @@ test('concurrent branch update retries using latest records, commits image and i
     assert.match((await result.json()).path, /newcommit/);
   } finally { globalThis.fetch = original; }
 });
+
+const b64url = bytes => Buffer.from(bytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const hmac = async (secret, data) => {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return b64url(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data)));
+};
+const tokenFor = async payload => {
+  const body = b64url(new TextEncoder().encode(JSON.stringify(payload)));
+  return `${body}.${await hmac('test-secret', body)}`;
+};
+const authReq = (method, body, token) => new Request('https://example.test/api/images', {
+  method,
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
+  body: body && JSON.stringify(body)
+});
+
+test('tag changes require login and only the owner may remove a tag', async () => {
+  const original = globalThis.fetch;
+  const item = { id: '11111111-1111-4111-8111-111111111111', name: 'x', tags: ['a', 'b'], owners: { a: '111', b: '222' }, fileName: 'library/images/x.webp', created: 1 };
+  const written = [];
+  const envAuth = { GITHUB_TOKEN: 'test-only', SESSION_SECRET: 'test-secret' };
+  try {
+    globalThis.fetch = async (url, options) => {
+      const path = new URL(url).pathname.replace('/repos/tag-box/tagbox/', '');
+      const body = options.body ? JSON.parse(options.body) : null;
+      if (path === 'git/ref/heads/main') return Response.json({ object: { sha: 'parent' } });
+      if (path.startsWith('git/commits/')) return Response.json({ tree: { sha: 'base' } });
+      if (path === 'contents/library/index.json') return Response.json({ content: Buffer.from(JSON.stringify([item])).toString('base64') });
+      if (path === 'git/blobs') { const decoded = Buffer.from(body.content, 'base64').toString(); if (decoded.startsWith('[')) written.push(JSON.parse(decoded)); return Response.json({ sha: 'blob' }); }
+      if (path === 'git/trees') return Response.json({ sha: 'tree' });
+      if (path === 'git/commits') return Response.json({ sha: 'newcommit' });
+      if (path === 'git/refs/heads/main') return Response.json({ ok: true });
+      throw new Error('Unexpected endpoint ' + path);
+    };
+    const id = item.id;
+    const alice = await tokenFor({ uid: '111', login: 'alice', adm: false, exp: Date.now() + 60000 });
+    const admin = await tokenFor({ uid: '999', login: 'boss', adm: true, exp: Date.now() + 60000 });
+    assert.equal((await worker.fetch(authReq('PATCH', { id, tags: ['b'] }), envAuth)).status, 401);
+    assert.equal((await worker.fetch(authReq('PATCH', { id, tags: ['b'] }, alice), envAuth)).status, 200);
+    assert.deepEqual(written.at(-1)[0].tags, ['b']);
+    assert.deepEqual(written.at(-1)[0].owners, { b: '222' });
+    assert.equal((await worker.fetch(authReq('PATCH', { id, tags: ['a'] }, alice), envAuth)).status, 403);
+    assert.equal((await worker.fetch(authReq('PATCH', { id, tags: ['a'] }, admin), envAuth)).status, 200);
+    assert.deepEqual(written.at(-1)[0].owners, { a: '111' });
+  } finally { globalThis.fetch = original; }
+});
+
+test('expired or forged sessions are rejected', async () => {
+  const envAuth = { GITHUB_TOKEN: 'test-only', SESSION_SECRET: 'test-secret' };
+  const expired = await tokenFor({ uid: '111', login: 'alice', adm: false, exp: Date.now() - 1000 });
+  const res = await worker.fetch(authReq('PATCH', { id: '11111111-1111-4111-8111-111111111111', tags: [] }, expired), envAuth);
+  assert.equal(res.status, 401);
+  const forged = (await tokenFor({ uid: '111', login: 'alice', adm: true, exp: Date.now() + 60000 })).replace(/\.[^.]+$/, '.bad');
+  assert.equal((await worker.fetch(authReq('PATCH', { id: '11111111-1111-4111-8111-111111111111', tags: [] }, forged), envAuth)).status, 401);
+});

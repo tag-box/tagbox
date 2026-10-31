@@ -6,5 +6,13 @@ compatibility_date = "2026-10-01"
 GITHUB_REPO = "tag-box/tagbox"
 GITHUB_BRANCH = "main"
 SITE_ORIGIN = "https://tag-box.github.io"
+SITE_URL = "https://tag-box.github.io/tagbox/"
+CALLBACK_URL = "https://tagbox-storage.gloomybunnie.workers.dev/auth/callback"
+ADMIN_LOGINS = "tag-box,brave-league"
+OAUTH_CLIENT_ID = "Ov23liyXKZQVJCFV7xAG"
 
-# Set GITHUB_TOKEN as a secret in Cloudflare, never here.
+# Secrets (set in Cloudflare, never here):
+#   GITHUB_TOKEN         - repo Contents read/write token
+#   OAUTH_CLIENT_ID      - GitHub OAuth App client id
+#   OAUTH_CLIENT_SECRET  - GitHub OAuth App client secret
+#   SESSION_SECRET       - random string used to sign login sessions

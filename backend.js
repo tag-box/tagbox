@@ -18,9 +18,13 @@
       tx.onabort = () => reject(tx.error || new Error('저장 취소됨'));
     });
   }
-  async function remote(method, body) {
-    const response = await fetch(endpoint + '/api/images', {
-      method, headers: { 'Content-Type': 'application/json' },
+  async function remote(method, body, path = '/api/images') {
+    const headers = { 'Content-Type': 'application/json' };
+    let token = '';
+    try { token = localStorage.getItem('tagbox-token') || ''; } catch {}
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(endpoint + path, {
+      method, headers,
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await response.json();

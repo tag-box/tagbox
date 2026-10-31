@@ -82,6 +82,14 @@ body{
   color:#748093
 }
 
+.header-right{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap
+}
+
 .panel{
   max-width:1180px;
   margin:24px auto 0;
@@ -271,6 +279,25 @@ button:hover{
   filter:none
 }
 
+.tag.shared{
+  border:1px dashed rgba(127,127,127,.55);
+  background:transparent
+}
+
+.owner-bar{
+  max-width:1180px;
+  margin:10px auto 0;
+  padding:0 4px;
+  display:none;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap
+}
+
+.owner-bar.open{
+  display:flex
+}
+
 .empty{
   grid-column:1/-1;
   text-align:center;
@@ -293,8 +320,8 @@ button:hover{
 }
 
 .dialog{
-  width:min(760px,100%);
-  max-height:90vh;
+  width:min(1100px,100%);
+  max-height:95vh;
   overflow:auto;
   background:light-dark(#fff,#171d26);
   border-radius:22px;
@@ -304,8 +331,8 @@ button:hover{
 .image-viewer{
   position:relative;
   width:100%;
-  height:min(62vh,620px);
-  min-height:320px;
+  height:min(78vh,940px);
+  min-height:360px;
   overflow:hidden;
   border-radius:14px;
   background:#0b0e12;
@@ -321,8 +348,8 @@ button:hover{
 }
 
 .big{
-  max-width:none;
-  max-height:none;
+  max-width:100%;
+  max-height:100%;
   width:auto;
   height:auto;
   object-fit:contain;
@@ -456,10 +483,10 @@ button:hover{
 
   </div>
 
-  <div
-    class="stats"
-    id="stats"
-  ></div>
+  <div class="header-right">
+    <div class="stats" id="stats"></div>
+    <button id="authBtn" class="secondary" type="button" style="display:none">GitHub 로그인</button>
+  </div>
 
 </header>
 
@@ -564,6 +591,7 @@ button:hover{
 
 
     <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
+    <button id="openOriginal" class="secondary" type="button">원본 열기</button>
 <!-- 현재 태그 -->
 
     <div
@@ -592,7 +620,8 @@ button:hover{
 
     <div class="hint">
       여러 개를 넣으려면 쉼표로 구분하세요.
-      예: 고양이, 귀여움, 실내
+      예: 고양이, 귀여움, 실내 · 태그 추가는 GitHub 로그인 후 누구나 가능하고,
+      수정·삭제는 그 태그를 추가한 계정에서만 됩니다.
     </div>
 
 
@@ -639,6 +668,119 @@ let items = [];
 
 let current = null;
 
+
+// =========================
+// GitHub 로그인 세션
+// 태그를 추가한 계정만 그 태그를 수정/삭제할 수 있음
+// =========================
+
+const TOKEN_KEY = 'tagbox-token';
+
+let session = null;
+
+function getToken(){
+  try{
+    return localStorage.getItem(TOKEN_KEY) || '';
+  }catch{
+    return '';
+  }
+}
+
+function setToken(token){
+  try{
+    if(token){
+      localStorage.setItem(TOKEN_KEY, token);
+    }else{
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }catch{}
+}
+
+function b64urlDecode(text){
+  let s = String(text).replace(/-/g, '+').replace(/_/g, '/');
+  while(s.length % 4){
+    s += '=';
+  }
+  const bin = atob(s);
+  return new TextDecoder().decode(
+    Uint8Array.from(bin, c => c.charCodeAt(0))
+  );
+}
+
+function decodeSession(token){
+  if(!token){
+    return null;
+  }
+  try{
+    const payload =
+      JSON.parse(b64urlDecode(token.split('.')[0]));
+    if(!payload || !payload.exp || payload.exp < Date.now()){
+      return null;
+    }
+    return payload;
+  }catch{
+    return null;
+  }
+}
+
+function loadSession(){
+  const token = getToken();
+  session = decodeSession(token);
+  if(!session && token){
+    setToken('');
+  }
+}
+
+function ownsTag(item, tag){
+  // 브라우저 체험 모드에서는 소유권 구분이 필요 없음
+  if(!window.tagboxShared){
+    return true;
+  }
+  if(!session){
+    return false;
+  }
+  if(session.adm){
+    return true;
+  }
+  return String(session.uid) ===
+    String((item.owners || {})[tag]);
+}
+
+function renderAuth(){
+  const button = $('authBtn');
+
+  if(!window.tagboxShared){
+    button.style.display = 'none';
+    return;
+  }
+
+  button.style.display = 'inline-block';
+
+  if(session){
+    button.textContent =
+      `${session.login} · 로그아웃`;
+    button.onclick = () => {
+      setToken('');
+      session = null;
+      renderAuth();
+      render();
+      if($('modal').classList.contains('open')){
+        renderModalTags();
+      }
+    };
+  }else{
+    button.textContent = 'GitHub 로그인';
+    button.onclick = () => {
+      const base =
+        (window.TAGBOX_CONFIG.apiUrl || '').replace(/\/$/, '');
+      if(!base){
+        return;
+      }
+      location.href = base + '/auth/login';
+    };
+  }
+}
+
 // 이미지 확대/이동 상태
 let zoom = 1;
 let panX = 0;
@@ -658,6 +800,8 @@ async function load(){
 
   try{
 
+    loadSession();
+
     const saved =
       await window.tagboxAPI.loadData();
 
@@ -675,6 +819,11 @@ async function load(){
           Array.isArray(x.tags)
             ? [...x.tags]
             : [],
+
+        owners:
+          x.owners && typeof x.owners === 'object'
+            ? {...x.owners}
+            : {},
 
         src:x.path
 
@@ -697,6 +846,8 @@ async function load(){
   }
 
   render();
+
+  renderAuth();
 
 }
 
@@ -952,6 +1103,12 @@ function esc(s){
 // 이미지 열기
 // =========================
 
+$('openOriginal').onclick = () => {
+  if(current && current.src){
+    window.open(current.src, '_blank', 'noopener');
+  }
+};
+
 $('shareItem').onclick = async () => {
   if (!current) return;
   if (!window.tagboxShared) { alert('현재는 브라우저 체험 모드입니다. 공동 저장 서버를 연결한 뒤 공유할 수 있습니다.'); return; }
@@ -1023,13 +1180,21 @@ function renderModalTags(){
 
     tags.length
 
-      ? tags.map((t,index) =>
+      ? tags.map((t,index) => {
 
-          `
-          <span class="tag">
+          const mine = ownsTag(current, t);
+
+          return `
+          <span
+            class="tag${mine ? '' : ' shared'}"
+            title="${mine ? '내가 추가한 태그' : '다른 사람이 추가한 태그 — 수정·삭제할 수 없습니다'}"
+          >
 
             #${esc(t)}
 
+            ${
+              mine
+                ? `
             <button
               type="button"
               class="remove-tag"
@@ -1038,11 +1203,14 @@ function renderModalTags(){
             >
               ×
             </button>
+            `
+                : ''
+            }
 
           </span>
-          `
+          `;
 
-        ).join('')
+        }).join('')
 
       : `
           <span
@@ -1358,6 +1526,12 @@ $('addTag').onclick = async () => {
     return;
   }
 
+  if(window.tagboxShared && !session){
+    alert('태그를 추가하려면 GitHub 로그인이 필요합니다.');
+    renderAuth();
+    return;
+  }
+
 
   const value =
     $('tagInput')
@@ -1382,12 +1556,28 @@ $('addTag').onclick = async () => {
   // 기존 태그 + 새 태그
   // 중복 제거
 
+  const before =
+    new Set(current.tags);
+
+
   current.tags = [
     ...new Set([
       ...current.tags,
       ...newTags
     ])
   ];
+
+
+  // 새로 추가한 태그만 이 브라우저 소유로 표시
+
+  current.owners =
+    current.owners || {};
+
+  current.tags
+    .filter(t => !before.has(t))
+    .forEach(t => {
+      current.owners[t] = String(session.uid);
+    });
 
 
   // 전체 목록에도 반영
@@ -1403,6 +1593,10 @@ $('addTag').onclick = async () => {
     item.tags = [
       ...current.tags
     ];
+
+    item.owners = {
+      ...current.owners
+    };
 
   }
 
@@ -1752,11 +1946,29 @@ $('demo').onclick = () => load();
 // 시작
 // =========================
 
+const incomingHash = location.hash.slice(1);
+
+// GitHub 로그인 후 돌아온 세션 토큰
+if(incomingHash.startsWith('auth=')){
+  setToken(incomingHash.slice(5));
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
 $('modeBanner').textContent = window.tagboxShared
-  ? '공동 라이브러리 · 누구나 등록하고 태그를 편집할 수 있습니다. 삭제는 모두에게 반영됩니다.'
+  ? '공동 라이브러리 · 이미지 추가는 누구나, 태그는 GitHub 로그인 후 추가할 수 있고 수정·삭제는 추가한 계정만 가능합니다.'
   : '브라우저 체험 모드 · 이 기기에만 저장됩니다. GitHub 공동 저장 서버는 아직 연결되지 않았습니다.';
-load().then(() => { if (location.hash) openItem(location.hash.slice(1)); });
-window.addEventListener('hashchange', () => openItem(location.hash.slice(1)));
+load().then(() => {
+  const hash = location.hash.slice(1);
+  if(hash && !hash.startsWith('auth=')){
+    openItem(hash);
+  }
+});
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.slice(1);
+  if(hash && !hash.startsWith('auth=')){
+    openItem(hash);
+  }
+});
 </script>
 
 </body>
