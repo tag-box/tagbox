@@ -438,6 +438,45 @@ body:has(.modal.open){
   min-height:28px
 }
 
+.suggest{
+  position:fixed;
+  z-index:60;
+  display:none;
+  max-height:280px;
+  overflow-y:auto;
+  padding:6px;
+  border:1px solid light-dark(#dfe5ee,#2b3546);
+  border-radius:12px;
+  background:light-dark(#fff,#1a2130);
+  box-shadow:0 14px 34px rgba(0,0,0,.22)
+}
+
+.suggest.open{
+  display:block
+}
+
+.suggest button{
+  display:block;
+  width:100%;
+  text-align:left;
+  background:transparent;
+  color:inherit;
+  font-weight:650;
+  font-size:13px;
+  padding:8px 10px;
+  border-radius:8px
+}
+
+.suggest button:hover{
+  background:light-dark(#eef2f8,#232c3a)
+}
+
+.suggest .empty{
+  padding:8px 10px;
+  font-size:12px;
+  color:#7c8797
+}
+
 @media(max-width:760px){
 
   .dialog{
@@ -736,6 +775,9 @@ body:has(.modal.open){
 </div>
 
 
+<div id="suggest" class="suggest"></div>
+
+
 <script src="config.js"></script>
 <script src="backend.js"></script>
 <script>
@@ -747,6 +789,8 @@ const $ = id =>
 let items = [];
 
 let current = null;
+
+let tagList = [];
 
 
 // =========================
@@ -1044,6 +1088,11 @@ function render(){
     )
   ];
 
+  tagList =
+    [...allTags].sort(
+      (a,b) => a.localeCompare(b, 'ko')
+    );
+
 
   $('stats').textContent =
     `${items.length}개 이미지 · ${allTags.length}개 태그`;
@@ -1081,6 +1130,9 @@ function render(){
           </div>
 
 
+          ${
+            x.tags.length
+              ? `
           <div class="body">
 
             <div class="tags">
@@ -1100,6 +1152,9 @@ function render(){
             </div>
 
           </div>
+          `
+              : ''
+          }
 
         </article>
 
@@ -1213,6 +1268,61 @@ function render(){
     });
 
 }
+
+
+// =========================
+// 태그 자동완성
+// =========================
+
+function hideSuggest(){
+  $('suggest').classList.remove('open');
+}
+
+function showSuggest(input, query, onPick){
+  const box = $('suggest');
+  const q = String(query || '').trim().toLowerCase();
+
+  if(!q){
+    hideSuggest();
+    return;
+  }
+
+  const matches =
+    tagList
+      .filter(t => t.toLowerCase().includes(q))
+      .slice(0, 12);
+
+  if(!matches.length){
+    hideSuggest();
+    return;
+  }
+
+  box.innerHTML =
+    matches.map(t =>
+      `<button type="button" data-tag="${esc(t)}">#${esc(t)}</button>`
+    ).join('');
+
+  const rect = input.getBoundingClientRect();
+  box.style.left = `${rect.left}px`;
+  box.style.top = `${rect.bottom + 6}px`;
+  box.style.width = `${Math.max(200, rect.width)}px`;
+
+  box.querySelectorAll('button').forEach(button => {
+    button.onmousedown = e => {
+      e.preventDefault();
+      onPick(button.dataset.tag);
+      hideSuggest();
+    };
+  });
+
+  box.classList.add('open');
+}
+
+window.addEventListener('scroll', hideSuggest, { passive:true });
+
+document
+  .querySelector('.side')
+  .addEventListener('scroll', hideSuggest, { passive:true });
 
 
 // =========================
@@ -1436,8 +1546,29 @@ function renderModalTags(){
 // 검색
 // =========================
 
-$('search').oninput =
-  render;
+$('search').oninput = () => {
+  render();
+
+  const parts = $('search').value.split(/\s+/);
+  const last = parts[parts.length - 1];
+
+  showSuggest($('search'), last, tag => {
+    parts[parts.length - 1] = tag;
+    $('search').value = parts.join(' ').trim();
+    render();
+    hideSuggest();
+  });
+};
+
+$('search').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    hideSuggest();
+  }
+});
+
+$('search').addEventListener('blur', () => {
+  setTimeout(hideSuggest, 120);
+});
 
 
 $('clear').onclick = () => {
@@ -1777,12 +1908,30 @@ $('tagInput').addEventListener(
 
       e.preventDefault();
 
+      hideSuggest();
+
       $('addTag').click();
 
     }
 
   }
 );
+
+$('tagInput').addEventListener('input', () => {
+  const parts = $('tagInput').value.split(',');
+  const last = parts[parts.length - 1];
+
+  showSuggest($('tagInput'), last, tag => {
+    parts[parts.length - 1] = ` ${tag}`;
+    $('tagInput').value =
+      parts.join(',').replace(/^\s+/, '');
+    $('tagInput').focus();
+  });
+});
+
+$('tagInput').addEventListener('blur', () => {
+  setTimeout(hideSuggest, 120);
+});
 
 
 // =========================
