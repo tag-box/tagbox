@@ -462,6 +462,70 @@ body:has(.modal.open){
   min-height:28px
 }
 
+.chat-dock{
+  position:fixed;
+  right:16px;
+  top:88px;
+  width:320px;
+  height:min(62vh,540px);
+  display:none;
+  flex-direction:column;
+  background:light-dark(#fff,#171d26);
+  border:1px solid light-dark(#e1e7ef,#283241);
+  border-radius:16px;
+  box-shadow:0 18px 40px rgba(0,0,0,.28);
+  overflow:hidden;
+  z-index:9
+}
+
+.chat-dock.open{
+  display:flex
+}
+
+.chat-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:9px 12px;
+  border-bottom:1px solid light-dark(#e1e7ef,#283241);
+  font-size:13px;
+  font-weight:750
+}
+
+.chat-head button{
+  padding:6px 10px;
+  font-size:12px;
+  border-radius:9px
+}
+
+.chat-dock iframe{
+  flex:1;
+  width:100%;
+  border:0;
+  background:#fff
+}
+
+.chat-tab{
+  position:fixed;
+  right:16px;
+  top:88px;
+  display:none;
+  z-index:9;
+  padding:10px 14px
+}
+
+.chat-tab.open{
+  display:block
+}
+
+@media(max-width:980px){
+  .chat-dock,
+  .chat-tab{
+    display:none !important
+  }
+}
+
 .suggest{
   position:fixed;
   z-index:60;
@@ -776,6 +840,24 @@ body:has(.modal.open){
 <div id="suggest" class="suggest"></div>
 
 
+<!-- 가가라이브 채팅 (오른쪽 고정) -->
+
+<aside class="chat-dock" id="chatDock">
+  <div class="chat-head">
+    <span>가가라이브 채팅</span>
+    <button id="chatCollapse" class="secondary" type="button">접기</button>
+  </div>
+  <iframe
+    id="chatFrame"
+    title="가가라이브 채팅"
+    loading="lazy"
+    referrerpolicy="no-referrer"
+  ></iframe>
+</aside>
+
+<button id="chatOpen" class="secondary chat-tab" type="button">채팅</button>
+
+
 <script src="config.js"></script>
 <script src="backend.js"></script>
 <script>
@@ -895,6 +977,40 @@ function renderAuth(){
     button.onclick = openAuth;
   }
 }
+
+// =========================
+// 가가라이브 채팅
+// =========================
+
+const CHAT_KEY = 'tagbox-chat';
+
+const chatUrl =
+  String(
+    (window.TAGBOX_CONFIG && window.TAGBOX_CONFIG.chatUrl) || ''
+  ).trim();
+
+function applyChatState(open){
+  $('chatDock').classList.toggle('open', open);
+  $('chatOpen').classList.toggle('open', !open);
+  try{
+    localStorage.setItem(CHAT_KEY, open ? 'open' : 'closed');
+  }catch{}
+}
+
+if(chatUrl){
+  $('chatFrame').src = chatUrl;
+
+  let saved = 'open';
+  try{
+    saved = localStorage.getItem(CHAT_KEY) || 'open';
+  }catch{}
+
+  applyChatState(saved !== 'closed');
+
+  $('chatCollapse').onclick = () => applyChatState(false);
+  $('chatOpen').onclick = () => applyChatState(true);
+}
+
 
 // =========================
 // 화이트 / 다크 테마
