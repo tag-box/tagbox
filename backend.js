@@ -55,9 +55,9 @@
       if (!endpoint) throw new Error('로그인은 공동 라이브러리에서만 사용할 수 있습니다.');
       return remote('POST', { username, password }, '/auth/login');
     },
-    async register(username, password) {
+    async register(username, password, code) {
       if (!endpoint) throw new Error('회원가입은 공동 라이브러리에서만 사용할 수 있습니다.');
-      return remote('POST', { username, password }, '/auth/register');
+      return remote('POST', { username, password, code }, '/auth/register');
     },
     async deleteImage(id) {
       if (endpoint) return remote('DELETE', { id });

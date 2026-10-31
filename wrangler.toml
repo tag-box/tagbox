@@ -17,3 +17,4 @@ database_id = "7aa8b47d-ada3-4a98-bad1-f69bf2615fc0"
 # Secrets (set in Cloudflare, never here):
 #   GITHUB_TOKEN    - repo Contents read/write token
 #   SESSION_SECRET  - random string used to sign login sessions
+#   SIGNUP_CODE     - required to create a new account

@@ -114,6 +114,8 @@ export default {
         checkCredentials(display, password);
         const username = display.toLowerCase();
         if (url.pathname === '/auth/register') {
+          if (!env.SIGNUP_CODE) throw fail('회원가입이 잠겨 있습니다.', 403);
+          if (!safeEqual(String(input.code || ''), String(env.SIGNUP_CODE))) throw fail('가입 코드가 올바르지 않습니다.', 403);
           const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
           if (existing) throw fail('이미 사용 중인 아이디입니다.', 409);
           const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();

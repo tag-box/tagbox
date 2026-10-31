@@ -678,13 +678,18 @@ button:hover{
       <input id="authPass" type="password" autocomplete="current-password" placeholder="비밀번호 (8자 이상)">
     </div>
 
+    <div class="formrow">
+      <input id="authCode" autocomplete="off" placeholder="가입 코드 (회원가입 시에만)">
+    </div>
+
     <div class="actions">
       <button id="authRegister" class="secondary" type="button">회원가입</button>
       <button id="authLogin" type="button">로그인</button>
     </div>
 
     <div class="hint">
-      첫 번째로 가입한 계정이 관리자가 됩니다.
+      회원가입에는 가입 코드가 필요합니다.
+      첫 번째로 가입한 계정이 관리자가 되며,
       비밀번호는 복구할 수 없으니 기억해주세요.
     </div>
 
@@ -814,6 +819,7 @@ function renderAuth(){
 function openAuth(){
   $('authUser').value = '';
   $('authPass').value = '';
+  $('authCode').value = '';
   $('authModal').classList.add('open');
   $('authUser').focus();
 }
@@ -831,10 +837,17 @@ async function submitAuth(kind){
     return;
   }
 
+  const code = $('authCode').value.trim();
+
+  if(kind === 'register' && !code){
+    alert('가입 코드를 입력해주세요.');
+    return;
+  }
+
   try{
     const result =
       kind === 'register'
-        ? await window.tagboxAPI.register(username, password)
+        ? await window.tagboxAPI.register(username, password, code)
         : await window.tagboxAPI.login(username, password);
 
     if(!result || !result.token){
