@@ -305,36 +305,54 @@ button:hover{
   color:#7b8797
 }
 
+body:has(.modal.open){
+  overflow:hidden
+}
+
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.58);
+  background:#0b0e12;
   display:none;
-  place-items:center;
-  padding:20px;
+  padding:0;
   z-index:10
 }
 
 .modal.open{
-  display:grid
+  display:block
 }
 
 .dialog{
-  width:min(1100px,100%);
-  max-height:95vh;
-  overflow:auto;
+  width:100%;
+  height:100vh;
+  max-height:none;
+  overflow:hidden;
   background:light-dark(#fff,#171d26);
-  border-radius:22px;
-  padding:18px
+  border-radius:0;
+  padding:0;
+  display:flex;
+  align-items:stretch
+}
+
+.side{
+  flex:0 0 340px;
+  width:340px;
+  height:100vh;
+  overflow-y:auto;
+  padding:16px;
+  box-sizing:border-box;
+  border-left:1px solid light-dark(#e1e7ef,#283241);
+  background:light-dark(#fff,#171d26)
 }
 
 .image-viewer{
   position:relative;
-  width:100%;
-  height:min(78vh,940px);
-  min-height:360px;
+  flex:1 1 auto;
+  width:auto;
+  height:100vh;
+  min-height:0;
   overflow:hidden;
-  border-radius:14px;
+  border-radius:0;
   background:#0b0e12;
   display:flex;
   align-items:center;
@@ -366,7 +384,7 @@ button:hover{
   align-items:center;
   justify-content:center;
   gap:7px;
-  margin-top:10px;
+  margin:0 0 12px;
 }
 
 .zoom-controls button{
@@ -418,6 +436,28 @@ button:hover{
 .modal-tags{
   margin-top:12px;
   min-height:28px
+}
+
+@media(max-width:760px){
+
+  .dialog{
+    flex-direction:column
+  }
+
+  .image-viewer{
+    height:52vh;
+    flex:0 0 52vh
+  }
+
+  .side{
+    flex:1 1 auto;
+    width:auto;
+    height:auto;
+    min-height:0;
+    border-left:0;
+    border-top:1px solid light-dark(#e1e7ef,#283241)
+  }
+
 }
 
 @media(max-width:600px){
@@ -565,15 +605,6 @@ button:hover{
 
   <div class="dialog">
 
-    <button
-      id="close"
-      class="secondary"
-      style="float:right"
-    >
-      닫기
-    </button>
-
-
     <div class="image-viewer" id="imageViewer">
       <img
         id="big"
@@ -582,6 +613,10 @@ button:hover{
       >
     </div>
 
+    <aside class="side">
+
+    <button id="close" class="secondary" type="button" style="width:100%">닫기</button>
+
     <div class="zoom-controls">
       <button id="zoomOut" class="secondary" type="button">−</button>
       <button id="zoomReset" class="secondary" type="button">맞춤</button>
@@ -589,9 +624,10 @@ button:hover{
       <button id="zoomIn" class="secondary" type="button">＋</button>
     </div>
 
-
-    <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
-    <button id="openOriginal" class="secondary" type="button">원본 열기</button>
+    <div class="actions" style="justify-content:flex-start">
+      <button id="shareItem" class="secondary" type="button">공유 링크 복사</button>
+      <button id="openOriginal" class="secondary" type="button">원본 열기</button>
+    </div>
 <!-- 현재 태그 -->
 
     <div
@@ -650,6 +686,8 @@ button:hover{
       </button>
 
     </div>
+
+    </aside>
 
   </div>
 
