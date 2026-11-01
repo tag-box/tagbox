@@ -1427,6 +1427,8 @@ body:has(.modal.open){
 
     <button id="close" class="secondary" type="button" style="width:100%;margin-top:14px">닫기</button>
 
+    <button id="randomInModal" class="secondary" type="button" style="width:100%;margin-top:8px">랜덤 이미지</button>
+
     </div>
 
     </aside>
@@ -2629,7 +2631,7 @@ $('shareItem').onclick = async () => {
   try { await navigator.clipboard.writeText(link.href); alert('공유 링크를 복사했습니다.'); }
   catch { prompt('공유 링크', link.href); }
 };
-function openItem(id){
+function openItem(id, skipHistory){
 
   current =
     items.find(
@@ -2679,7 +2681,10 @@ function openItem(id){
 
   // 뒤로가기로 닫을 수 있도록 기록 추가
 
-  if(!(history.state && history.state.tagbox === id)){
+  if(
+    !skipHistory &&
+    !(history.state && history.state.tagbox === id)
+  ){
     history.pushState(
       { tagbox:id },
       '',
@@ -3009,6 +3014,26 @@ $('randomBtn').onclick = () => {
     items[Math.floor(Math.random() * items.length)];
 
   openItem(pick.id);
+};
+
+$('randomInModal').onclick = () => {
+  if(items.length < 2){
+    return;
+  }
+
+  let pick;
+
+  do{
+    pick = items[Math.floor(Math.random() * items.length)];
+  }while(current && pick.id === current.id);
+
+  openItem(pick.id, true);
+
+  history.replaceState(
+    { tagbox: pick.id },
+    '',
+    `#${encodeURIComponent(pick.id)}`
+  );
 };
 
 $('bulkCancel').onclick = () => setSelectMode(false);
