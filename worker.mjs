@@ -198,7 +198,7 @@ export default {
         return reply({ error: 'Method not allowed' }, 405);
       }
 
-      if (url.pathname !== '/api/images' && url.pathname !== '/api/images/bulk') return reply({ error: 'Not found' }, 404);
+      if (!['/api/images', '/api/images/bulk', '/api/tags/bulk'].includes(url.pathname)) return reply({ error: 'Not found' }, 404);
       if (!['GET','POST','PATCH','DELETE'].includes(request.method)) return reply({ error: 'Method not allowed' }, 405);
       if (!env.GITHUB_TOKEN) throw fail('GitHub 저장 서버 설정이 아직 완료되지 않았습니다.', 503);
       const repo = env.GITHUB_REPO || 'tag-box/tagbox';
@@ -224,11 +224,62 @@ export default {
       const publicItem = (item, ref = branch) => ({ ...item,
         path: `https://raw.githubusercontent.com/${repo}/${ref}/${item.fileName}` });
 
+      if (url.pathname === '/api/tags/bulk') {
+        if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405);
+        const tagSession = await readToken(request, env);
+        if (!tagSession) throw fail('태그를 추가하려면 로그인이 필요합니다.', 401);
+        const input = await bodyJSON(request);
+        const list = Array.isArray(input.items) ? input.items : [];
+        if (list.length < 1 || list.length > 200) throw fail('한 번에 1~200장까지 지정할 수 있습니다.');
+        const uid = String(tagSession.uid);
+        const operations = [];
+        for (const it of list) {
+          if (!/^[0-9a-f-]{36}$/i.test(it.id || '')) throw fail('이미지 ID가 올바르지 않습니다.');
+          const tags = Array.isArray(it.tags) ? it.tags : [];
+          if (tags.length > 20 || tags.some(t => typeof t !== 'string' || t.length > 100)) throw fail('태그는 한 장당 20개 이하, 각 100자 이하로 입력해주세요.');
+          operations.push({ id: it.id, tags: [...new Set(tags.map(t => t.trim()).filter(Boolean))] });
+        }
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const ref = await gh(`git/ref/heads/${encodeURIComponent(branch)}`);
+          const parent = ref.object.sha;
+          const commit = await gh(`git/commits/${parent}`);
+          const items = await read(parent);
+          let added = 0;
+          const touched = new Set();
+          for (const op of operations) {
+            const item = items.find(i => i.id === op.id);
+            if (!item) continue;
+            const tags = Array.isArray(item.tags) ? item.tags : [];
+            const owners = ownedTags(tags, item.owners);
+            for (const t of op.tags) {
+              if (!tags.includes(t)) {
+                tags.push(t);
+                added++;
+                if (!owners[t]) owners[t] = uid;
+              }
+            }
+            item.tags = tags;
+            item.owners = owners;
+            touched.add(item.id);
+          }
+          if (!added) return reply({ updated: touched.size, added: 0 });
+          const index = await gh('git/blobs', 'POST', { content: encoded(JSON.stringify(items)), encoding: 'base64' });
+          const tree = await gh('git/trees', 'POST', { base_tree: commit.tree.sha,
+            tree: [{ path: 'library/index.json', mode: '100644', type: 'blob', sha: index.sha }] });
+          const next = await gh('git/commits', 'POST', { message: `TagBox tag ${touched.size} items`, tree: tree.sha, parents: [parent] });
+          try {
+            await gh(`git/refs/heads/${encodeURIComponent(branch)}`, 'PATCH', { sha: next.sha, force: false });
+            return reply({ updated: touched.size, added });
+          } catch (e) { if (![409,422].includes(e.status) || attempt === 3) throw e; }
+        }
+      }
+
       if (url.pathname === '/api/images/bulk') {
         if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405);
         const input = await bodyJSON(request, 64 * 1024 * 1024);
         const list = Array.isArray(input.items) ? input.items : [];
         if (list.length < 1 || list.length > 20) throw fail('한 번에 1~20장까지 올릴 수 있습니다.');
+        const session = await readToken(request, env);
 
         const types = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
         let total = 0;
@@ -246,8 +297,12 @@ export default {
             : bytes.slice(4,8) === 'ftyp' && /avif|avis/.test(bytes.slice(8,64));
           if (!valid) throw fail('파일 내용과 이미지 형식이 일치하지 않습니다.');
           if (typeof it.name !== 'string' || !it.name.trim() || it.name.length > 300) throw fail('이미지 이름을 확인해주세요.');
+          const tags = Array.isArray(it.tags) ? it.tags : [];
+          if (tags.length > 100 || tags.some(t => typeof t !== 'string' || t.length > 100)) throw fail('태그는 100개 이하, 각 100자 이하로 입력해주세요.');
+          const cleanTags = [...new Set(tags.map(t => t.trim()).filter(Boolean))];
+          if (cleanTags.length && !session) throw fail('태그를 함께 올리려면 로그인이 필요합니다.', 401);
           total += bytes.length;
-          prepared.push({ id: it.id, name: it.name.trim(), base64: it.base64, ext: types[it.type] });
+          prepared.push({ id: it.id, name: it.name.trim(), base64: it.base64, ext: types[it.type], tags: cleanTags });
         }
 
         if (total > 60 * 1024 * 1024) throw fail('한 번에 60MB 이하로 올려주세요.', 413);
@@ -271,11 +326,17 @@ export default {
           if (prepared.some(p => existing.has(p.id))) throw fail('이미 등록된 이미지입니다.', 409);
 
           const created = Date.now();
-          const newItems = prepared.map((p, index) => ({
-            id: p.id, name: p.name, tags: [], owners: {},
-            created: created + index,
-            fileName: `library/images/${p.id}.${p.ext}`
-          }));
+          const newItems = prepared.map((p, index) => {
+            const owners = {};
+            if (session) {
+              for (const t of p.tags) owners[t] = String(session.uid);
+            }
+            return {
+              id: p.id, name: p.name, tags: p.tags, owners,
+              created: created + index,
+              fileName: `library/images/${p.id}.${p.ext}`
+            };
+          });
 
           const tree = newItems.map((item, index) => ({
             path: item.fileName, mode: '100644', type: 'blob', sha: blobs[index].sha

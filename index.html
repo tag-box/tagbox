@@ -215,6 +215,44 @@ button:hover{
   flex-wrap:wrap
 }
 
+.toolbar-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap
+}
+
+.bulkbar{
+  display:none;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+  padding:10px;
+  border:1px dashed light-dark(#d7dee8,#334052);
+  border-radius:12px
+}
+
+.bulkbar.open{
+  display:flex
+}
+
+.bulkbar #bulkCount{
+  font-size:12px;
+  color:#7c8797;
+  min-width:70px
+}
+
+.bulkbar input{
+  flex:1;
+  min-width:180px;
+  padding:9px 11px;
+  border-radius:10px;
+  border:1px solid light-dark(#d7dee8,#334052);
+  background:transparent;
+  color:inherit;
+  outline:none
+}
+
 .chips{
   display:flex;
   gap:7px;
@@ -253,6 +291,7 @@ button:hover{
 }
 
 .card{
+  position:relative;
   overflow:hidden;
   border:1px solid light-dark(#e1e7ef,#283241);
   background:light-dark(#fff,#171d26);
@@ -283,6 +322,22 @@ button:hover{
 .placeholder{
   font-size:42px;
   color:#aab3c1
+}
+
+.pick{
+  position:absolute;
+  top:8px;
+  left:8px;
+  z-index:2;
+  width:19px;
+  height:19px;
+  accent-color:#6d5dfc;
+  cursor:pointer
+}
+
+.card.picked{
+  outline:2px solid #6d5dfc;
+  outline-offset:-2px
 }
 
 .body{
@@ -1128,12 +1183,41 @@ body:has(.modal.open){
       id="chips"
     ></div>
 
-    <button
-      id="demo"
-      class="secondary"
+    <div class="toolbar-actions">
+
+      <button
+        id="demo"
+        class="secondary"
+        type="button"
+      >
+        새로고침
+      </button>
+
+      <button
+        id="bulkTagBtn"
+        class="secondary"
+        type="button"
+      >
+        목록에서 태그 추가
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div class="bulkbar" id="bulkBar">
+
+    <span id="bulkCount">0장 선택</span>
+
+    <input
+      id="bulkTagInput"
+      placeholder="추가할 태그 (쉼표로 여러 개)"
     >
-      새로고침
-    </button>
+
+    <button id="bulkApply" type="button">태그 추가</button>
+    <button id="bulkClear" class="secondary" type="button">선택 해제</button>
+    <button id="bulkCancel" class="secondary" type="button">취소</button>
 
   </div>
 
@@ -1387,6 +1471,9 @@ let tagList = [];
 
 const PAGE_SIZE = 100;
 let page = 1;
+
+let selectMode = false;
+const selectedIds = new Set();
 
 // 태그 저장 요청을 한 번에 하나씩 순서대로 보내기 위한 상태
 let tagsVersion = 0;
@@ -2032,9 +2119,15 @@ function render(){
       ? visible.map(x => `
 
         <article
-          class="card"
+          class="card${selectedIds.has(x.id) ? ' picked' : ''}"
           data-id="${esc(x.id)}"
         >
+
+          ${
+            selectMode
+              ? `<input type="checkbox" class="pick" data-id="${esc(x.id)}" ${selectedIds.has(x.id) ? 'checked' : ''}>`
+              : ''
+          }
 
           <div class="thumb">
 
@@ -2168,12 +2261,30 @@ function render(){
     .querySelectorAll('.card')
     .forEach(card => {
 
-      card.onclick = () =>
-        openItem(
-          card.dataset.id
-        );
+      card.onclick = e => {
+        if(selectMode){
+          if(e.target.classList.contains('pick')){
+            return;
+          }
+
+          togglePick(card.dataset.id);
+          return;
+        }
+
+        openItem(card.dataset.id);
+      };
 
     });
+
+  document
+    .querySelectorAll('.pick')
+    .forEach(pick => {
+      pick.onclick = e => e.stopPropagation();
+      pick.onchange = () => togglePick(pick.dataset.id);
+    });
+
+  $('bulkCount').textContent =
+    `${selectedIds.size}장 선택`;
 
 
   // =========================
@@ -2625,6 +2736,101 @@ $('clear').onclick = () => {
   render();
 
 };
+
+
+// =========================
+// 목록에서 여러 이미지에 태그 추가
+// =========================
+
+function togglePick(id){
+  if(selectedIds.has(id)){
+    selectedIds.delete(id);
+  }else{
+    selectedIds.add(id);
+  }
+
+  render();
+}
+
+function setSelectMode(on){
+  selectMode = on;
+
+  if(!on){
+    selectedIds.clear();
+  }
+
+  $('bulkBar').classList.toggle('open', on);
+  render();
+}
+
+$('bulkTagBtn').onclick = () => setSelectMode(!selectMode);
+
+$('bulkCancel').onclick = () => setSelectMode(false);
+
+$('bulkClear').onclick = () => {
+  selectedIds.clear();
+  render();
+};
+
+$('bulkApply').onclick = async () => {
+  const tags = $('bulkTagInput').value
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  if(!selectedIds.size){
+    alert('태그를 추가할 이미지를 먼저 선택하세요.');
+    return;
+  }
+
+  if(!tags.length){
+    alert('추가할 태그를 입력하세요.');
+    return;
+  }
+
+  if(!session){
+    alert('태그를 추가하려면 로그인이 필요합니다.');
+    openAuth();
+    return;
+  }
+
+  try{
+    const result = await window.tagboxAPI.bulkTags(
+      [...selectedIds].map(id => ({ id, tags }))
+    );
+
+    $('bulkTagInput').value = '';
+    setSelectMode(false);
+    await load();
+
+    alert(`태그를 추가했습니다. (${result.updated}장)`);
+
+  }catch(error){
+    alert(`태그 추가 실패\n\n${error.message || error}`);
+  }
+};
+
+$('bulkTagInput').addEventListener('input', () => {
+  const parts = $('bulkTagInput').value.split(',');
+  showSuggest($('bulkTagInput'), parts[parts.length - 1], tag => {
+    parts[parts.length - 1] = ` ${tag}`;
+    $('bulkTagInput').value =
+      parts.join(',').replace(/^\s+/, '');
+    $('bulkTagInput').focus();
+  });
+});
+
+$('bulkTagInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    hideSuggest();
+    $('bulkApply').click();
+  }
+});
+
+$('bulkTagInput').addEventListener('blur', () => {
+  setTimeout(hideSuggest, 120);
+});
 
 
 

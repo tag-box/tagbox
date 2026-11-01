@@ -43,6 +43,10 @@
       await local('readwrite', s => s.put(item));
       return item;
     },
+    async bulkTags(items) {
+      if (!endpoint) throw new Error('태그 추가는 공동 라이브러리에서만 사용할 수 있습니다.');
+      return remote('POST', { items }, '/api/tags/bulk');
+    },
     async saveImages(inputs) {
       if (endpoint) return remote('POST', { items: inputs }, '/api/images/bulk');
       const results = [];
