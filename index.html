@@ -242,6 +242,27 @@ button:hover{
   min-width:70px
 }
 
+.bulkbar.busy #bulkCount{
+  color:#6d5dfc
+}
+
+.bulkbar.busy #bulkCount::after{
+  content:"";
+  display:inline-block;
+  width:10px;
+  height:10px;
+  margin-left:6px;
+  border:2px solid currentColor;
+  border-right-color:transparent;
+  border-radius:50%;
+  animation:bulkspin .7s linear infinite;
+  vertical-align:-1px
+}
+
+@keyframes bulkspin{
+  to{ transform:rotate(360deg) }
+}
+
 .bulkbar input{
   flex:1;
   min-width:180px;
@@ -2856,19 +2877,49 @@ $('bulkApply').onclick = async () => {
     return;
   }
 
+  const button = $('bulkApply');
+  const label = button.textContent;
+  const ids = [...selectedIds];
+
+  button.disabled = true;
+  button.textContent = '추가 중…';
+  $('bulkBar').classList.add('busy');
+
+  let done = 0;
+  let updated = 0;
+
   try{
-    const result = await window.tagboxAPI.bulkTags(
-      [...selectedIds].map(id => ({ id, tags }))
-    );
+    for(let i = 0; i < ids.length; i += 50){
+      const part = ids.slice(i, i + 50);
+
+      $('bulkCount').textContent =
+        `${done}/${ids.length} 처리 중…`;
+
+      const result = await window.tagboxAPI.bulkTags(
+        part.map(id => ({ id, tags }))
+      );
+
+      updated += result.updated || 0;
+      done += part.length;
+
+      $('bulkCount').textContent =
+        `${done}/${ids.length} 처리 중…`;
+    }
 
     $('bulkTagInput').value = '';
-    setSelectMode(false);
-    await load();
+    $('bulkCount').textContent = '새로고침 중…';
 
-    alert(`태그를 추가했습니다. (${result.updated}장)`);
+    await load();
+    setSelectMode(false);
+
+    alert(`태그를 추가했습니다. (${updated}장)`);
 
   }catch(error){
     alert(`태그 추가 실패\n\n${error.message || error}`);
+  }finally{
+    button.disabled = false;
+    button.textContent = label;
+    $('bulkBar').classList.remove('busy');
   }
 };
 
