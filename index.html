@@ -949,6 +949,12 @@ body:has(.modal.open){
   pointer-events:none
 }
 
+#uploadModal.dragover .upload-dialog{
+  outline:2px dashed #6d5dfc;
+  outline-offset:-6px;
+  background:light-dark(#f7f8ff,#1b2233)
+}
+
 .stage-tagbar{
   display:flex;
   gap:8px;
@@ -1513,7 +1519,7 @@ body:has(.modal.open){
     <div class="stage-list" id="stageList"></div>
 
     <div class="upload-foot">
-      <span class="hint" style="margin:0">태그는 업로드 후에도 수정할 수 있습니다. 삭제한 사진은 저장소에 남지 않습니다.</span>
+      <span class="hint" style="margin:0">사진을 끌어다 놓아도 추가됩니다. 삭제한 사진은 저장소에 남지 않습니다.</span>
       <button id="uploadConfirm" type="button">업로드 확정</button>
     </div>
 
@@ -3884,6 +3890,33 @@ $('stageFile').onchange = async e => {
   e.target.value = '';
   await stageFiles(files);
 };
+
+// 업로드 팝업으로 사진을 끌어다 놓기
+$('uploadModal').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  $('uploadModal').classList.add('dragover');
+});
+
+$('uploadModal').addEventListener('dragleave', e => {
+  if(!e.relatedTarget || !$('uploadModal').contains(e.relatedTarget)){
+    $('uploadModal').classList.remove('dragover');
+  }
+});
+
+$('uploadModal').addEventListener('drop', async e => {
+  e.preventDefault();
+  $('uploadModal').classList.remove('dragover');
+
+  const files = [...(e.dataTransfer?.files || [])]
+    .filter(file => file.type.startsWith('image/'));
+
+  if(!files.length){
+    return;
+  }
+
+  await stageFiles(files);
+});
 
 $('stageSelectAll').onclick = () => {
   staged.forEach(item => {
