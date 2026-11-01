@@ -1330,6 +1330,7 @@ body:has(.modal.open){
       </label>
       <button id="stageSelectAll" class="secondary" type="button">전체 선택</button>
       <button id="stageSelectNone" class="secondary" type="button">선택 해제</button>
+      <button id="stageDelete" class="danger" type="button">선택 삭제</button>
       <span class="hint" id="stageStatus" style="margin:0"></span>
     </div>
 
@@ -1341,7 +1342,7 @@ body:has(.modal.open){
     <div class="stage-list" id="stageList"></div>
 
     <div class="upload-foot">
-      <span class="hint" style="margin:0">태그는 업로드 후에도 수정할 수 있습니다.</span>
+      <span class="hint" style="margin:0">태그는 업로드 후에도 수정할 수 있습니다. 삭제한 사진은 저장소에 남지 않습니다.</span>
       <button id="uploadConfirm" type="button">업로드 확정</button>
     </div>
 
@@ -3322,6 +3323,11 @@ function renderStage(){
         URL.revokeObjectURL(item.preview);
       }
 
+      if(item){
+        item.base64 = '';
+        item.preview = '';
+      }
+
       staged = staged.filter(x => x.key !== button.dataset.remove);
       renderStage();
     };
@@ -3417,6 +3423,41 @@ $('stageSelectNone').onclick = () => {
   staged.forEach(item => {
     item.selected = false;
   });
+  renderStage();
+};
+
+$('stageDelete').onclick = () => {
+  if(uploading){
+    return;
+  }
+
+  const targets = staged.filter(x => x.selected);
+
+  if(!targets.length){
+    alert('삭제할 사진을 선택하세요.');
+    return;
+  }
+
+  if(!confirm(
+    `선택한 ${targets.length}장을 목록에서 삭제할까요?\n\n` +
+    '업로드 확정 전이라 저장소에는 아무것도 저장되지 않습니다.'
+  )){
+    return;
+  }
+
+  const keys = new Set(targets.map(x => x.key));
+
+  targets.forEach(item => {
+    if(item.preview){
+      URL.revokeObjectURL(item.preview);
+    }
+
+    // 변환된 이미지 데이터를 즉시 버려 메모리에도 남기지 않음
+    item.base64 = '';
+    item.preview = '';
+  });
+
+  staged = staged.filter(x => !keys.has(x.key));
   renderStage();
 };
 
