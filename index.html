@@ -221,6 +221,10 @@ button:hover{
   flex-wrap:wrap
 }
 
+.chips.hidden{
+  display:none
+}
+
 .bulkbar{
   display:none;
   align-items:center;
@@ -1210,6 +1214,14 @@ body:has(.modal.open){
     ></div>
 
     <div class="toolbar-actions">
+
+      <button
+        id="tagsToggle"
+        class="secondary"
+        type="button"
+      >
+        태그 숨기기
+      </button>
 
       <button
         id="demo"
@@ -2294,8 +2306,6 @@ function render(){
           b[1] - a[1]
       )
 
-      .slice(0,12)
-
       .map(([t,n]) =>
 
         `
@@ -2807,6 +2817,38 @@ $('clear').onclick = () => {
   render();
 
 };
+
+
+// =========================
+// 태그 목록 보이기 / 숨기기
+// =========================
+
+const TAGS_HIDE_KEY = 'tagbox-tags-hidden';
+
+function renderTagsToggle(){
+  let hidden = false;
+
+  try{
+    hidden = localStorage.getItem(TAGS_HIDE_KEY) === '1';
+  }catch{}
+
+  $('chips').classList.toggle('hidden', hidden);
+  $('tagsToggle').textContent =
+    hidden ? '태그 보이기' : '태그 숨기기';
+}
+
+$('tagsToggle').onclick = () => {
+  const nextHidden =
+    !$('chips').classList.contains('hidden');
+
+  try{
+    localStorage.setItem(TAGS_HIDE_KEY, nextHidden ? '1' : '0');
+  }catch{}
+
+  renderTagsToggle();
+};
+
+renderTagsToggle();
 
 
 // =========================
