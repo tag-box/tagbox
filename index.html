@@ -221,10 +221,6 @@ button:hover{
   flex-wrap:wrap
 }
 
-.chips.hidden{
-  display:none
-}
-
 .bulkbar{
   display:none;
   align-items:center;
@@ -888,6 +884,46 @@ body:has(.modal.open){
   gap:10px
 }
 
+.tags-dialog{
+  width:min(760px,100%);
+  height:80vh;
+  max-height:80vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  padding:16px
+}
+
+#tagsSearch{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:11px;
+  border:1px solid light-dark(#d7dee8,#334052);
+  background:transparent;
+  color:inherit;
+  outline:none
+}
+
+.tag-cloud{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  margin-top:12px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  align-content:start
+}
+
+.cloud-tag{
+  padding:7px 10px;
+  border-radius:999px;
+  background:light-dark(#f0f2ff,#24223b);
+  color:light-dark(#5142d4,#bdb6ff);
+  font-size:12px;
+  font-weight:650
+}
+
 .upload-tools{
   display:flex;
   align-items:center;
@@ -1119,6 +1155,11 @@ body:has(.modal.open){
     max-height:92vh
   }
 
+  .tags-dialog{
+    height:90vh;
+    max-height:90vh
+  }
+
   .panel{
     padding:13px
   }
@@ -1216,11 +1257,11 @@ body:has(.modal.open){
     <div class="toolbar-actions">
 
       <button
-        id="tagsToggle"
+        id="tagsBtn"
         class="secondary"
         type="button"
       >
-        태그 숨기기
+        태그 목록
       </button>
 
       <button
@@ -1475,6 +1516,27 @@ body:has(.modal.open){
       <span class="hint" style="margin:0">태그는 업로드 후에도 수정할 수 있습니다. 삭제한 사진은 저장소에 남지 않습니다.</span>
       <button id="uploadConfirm" type="button">업로드 확정</button>
     </div>
+
+  </div>
+
+</div>
+
+
+<!-- 전체 태그 목록 -->
+
+<div class="modal" id="tagsModal">
+
+  <div class="dialog tags-dialog">
+
+    <div class="upload-head">
+      <strong>태그 목록</strong>
+      <span style="flex:1"></span>
+      <button id="tagsClose" class="secondary" type="button">닫기</button>
+    </div>
+
+    <input id="tagsSearch" placeholder="태그 검색">
+
+    <div class="tag-cloud" id="tagCloud"></div>
 
   </div>
 
@@ -2306,6 +2368,8 @@ function render(){
           b[1] - a[1]
       )
 
+      .slice(0,12)
+
       .map(([t,n]) =>
 
         `
@@ -2820,35 +2884,85 @@ $('clear').onclick = () => {
 
 
 // =========================
-// 태그 목록 보이기 / 숨기기
+// 전체 태그 목록 팝업
 // =========================
 
-const TAGS_HIDE_KEY = 'tagbox-tags-hidden';
+function renderTagCloud(query){
+  const q = String(query || '').trim().toLowerCase();
 
-function renderTagsToggle(){
-  let hidden = false;
+  const counts = {};
 
-  try{
-    hidden = localStorage.getItem(TAGS_HIDE_KEY) === '1';
-  }catch{}
+  items.forEach(item => {
+    (item.tags || []).forEach(tag => {
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
 
-  $('chips').classList.toggle('hidden', hidden);
-  $('tagsToggle').textContent =
-    hidden ? '태그 보이기' : '태그 숨기기';
+  const untagged =
+    items.filter(x => !(x.tags || []).length).length;
+
+  const parts = [];
+
+  if(!q && untagged){
+    parts.push(
+      `<button type="button" class="cloud-tag" data-untagged="1">태그없음 · ${untagged}</button>`
+    );
+  }
+
+  Object.entries(counts)
+    .sort((a,b) => b[1] - a[1])
+    .filter(([tag]) => !q || tag.toLowerCase().includes(q))
+    .forEach(([tag,n]) => {
+      parts.push(
+        `<button type="button" class="cloud-tag" data-tag="${esc(tag)}">#${esc(tag)} · ${n}</button>`
+      );
+    });
+
+  $('tagCloud').innerHTML =
+    parts.length
+      ? parts.join('')
+      : '<div class="hint" style="padding:20px">해당하는 태그가 없습니다.</div>';
+
+  $('tagCloud')
+    .querySelectorAll('button')
+    .forEach(button => {
+      button.onclick = () => {
+        $('tagsModal').classList.remove('open');
+
+        page = 1;
+
+        if(button.dataset.untagged){
+          filterUntagged = true;
+          $('search').value = '';
+        }else{
+          filterUntagged = false;
+          $('search').value = button.dataset.tag;
+        }
+
+        render();
+      };
+    });
 }
 
-$('tagsToggle').onclick = () => {
-  const nextHidden =
-    !$('chips').classList.contains('hidden');
+function openTagsModal(){
+  $('tagsSearch').value = '';
+  renderTagCloud('');
+  $('tagsModal').classList.add('open');
+  $('tagsSearch').focus();
+}
 
-  try{
-    localStorage.setItem(TAGS_HIDE_KEY, nextHidden ? '1' : '0');
-  }catch{}
+$('tagsBtn').onclick = openTagsModal;
+$('tagsClose').onclick = () => $('tagsModal').classList.remove('open');
 
-  renderTagsToggle();
+$('tagsModal').onclick = e => {
+  if(e.target === $('tagsModal')){
+    $('tagsModal').classList.remove('open');
+  }
 };
 
-renderTagsToggle();
+$('tagsSearch').addEventListener('input', () => {
+  renderTagCloud($('tagsSearch').value);
+});
 
 
 // =========================
