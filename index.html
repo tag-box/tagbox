@@ -1201,6 +1201,14 @@ body:has(.modal.open){
         목록에서 태그 추가
       </button>
 
+      <button
+        id="randomBtn"
+        class="secondary"
+        type="button"
+      >
+        랜덤 이미지
+      </button>
+
     </div>
 
   </div>
@@ -2764,6 +2772,18 @@ function setSelectMode(on){
 }
 
 $('bulkTagBtn').onclick = () => setSelectMode(!selectMode);
+
+$('randomBtn').onclick = () => {
+  if(!items.length){
+    alert('이미지가 없습니다.');
+    return;
+  }
+
+  const pick =
+    items[Math.floor(Math.random() * items.length)];
+
+  openItem(pick.id);
+};
 
 $('bulkCancel').onclick = () => setSelectMode(false);
 
