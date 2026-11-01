@@ -9,14 +9,17 @@ function encoded(text) {
   let s = ''; for (const byte of bytes) s += String.fromCharCode(byte);
   return btoa(s);
 }
-async function bodyJSON(request) {
+async function bodyJSON(request, max = MAX) {
   const reader = request.body?.getReader();
   if (!reader) throw fail('요청 내용이 없습니다.');
   let size = 0; const chunks = [];
   while (true) {
     const { done, value } = await reader.read(); if (done) break;
     size += value.length;
-    if (size > MAX) { await reader.cancel(); throw fail('한 장당 10MB 이하로 올려주세요.', 413); }
+    if (size > max) {
+      await reader.cancel();
+      throw fail(max === MAX ? '한 장당 10MB 이하로 올려주세요.' : `한 번에 ${Math.floor(max / 1048576)}MB 이하로 올려주세요.`, 413);
+    }
     chunks.push(value);
   }
   const all = new Uint8Array(size); let offset = 0;
@@ -195,7 +198,7 @@ export default {
         return reply({ error: 'Method not allowed' }, 405);
       }
 
-      if (url.pathname !== '/api/images') return reply({ error: 'Not found' }, 404);
+      if (url.pathname !== '/api/images' && url.pathname !== '/api/images/bulk') return reply({ error: 'Not found' }, 404);
       if (!['GET','POST','PATCH','DELETE'].includes(request.method)) return reply({ error: 'Method not allowed' }, 405);
       if (!env.GITHUB_TOKEN) throw fail('GitHub 저장 서버 설정이 아직 완료되지 않았습니다.', 503);
       const repo = env.GITHUB_REPO || 'tag-box/tagbox';
@@ -220,6 +223,78 @@ export default {
       };
       const publicItem = (item, ref = branch) => ({ ...item,
         path: `https://raw.githubusercontent.com/${repo}/${ref}/${item.fileName}` });
+
+      if (url.pathname === '/api/images/bulk') {
+        if (request.method !== 'POST') return reply({ error: 'Method not allowed' }, 405);
+        const input = await bodyJSON(request, 64 * 1024 * 1024);
+        const list = Array.isArray(input.items) ? input.items : [];
+        if (list.length < 1 || list.length > 20) throw fail('한 번에 1~20장까지 올릴 수 있습니다.');
+
+        const types = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
+        let total = 0;
+        const prepared = [];
+
+        for (const it of list) {
+          if (!/^[0-9a-f-]{36}$/i.test(it.id || '')) throw fail('이미지 ID가 올바르지 않습니다.');
+          if (!types[it.type] || typeof it.base64 !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(it.base64)) throw fail('지원하지 않는 이미지입니다.');
+          let bytes; try { bytes = atob(it.base64); } catch { throw fail('이미지 데이터가 손상되었습니다.'); }
+          if (bytes.length > 10 * 1024 * 1024) throw fail('한 장당 10MB 이하로 올려주세요.', 413);
+          const valid = it.type === 'image/png' ? bytes.startsWith('\x89PNG\r\n\x1a\n')
+            : it.type === 'image/jpeg' ? bytes.startsWith('\xff\xd8\xff')
+            : it.type === 'image/webp' ? bytes.startsWith('RIFF') && bytes.slice(8,12) === 'WEBP'
+            : it.type === 'image/gif' ? /^GIF8[79]a/.test(bytes)
+            : bytes.slice(4,8) === 'ftyp' && /avif|avis/.test(bytes.slice(8,64));
+          if (!valid) throw fail('파일 내용과 이미지 형식이 일치하지 않습니다.');
+          if (typeof it.name !== 'string' || !it.name.trim() || it.name.length > 300) throw fail('이미지 이름을 확인해주세요.');
+          total += bytes.length;
+          prepared.push({ id: it.id, name: it.name.trim(), base64: it.base64, ext: types[it.type] });
+        }
+
+        if (total > 60 * 1024 * 1024) throw fail('한 번에 60MB 이하로 올려주세요.', 413);
+
+        // Upload image blobs in small parallel chunks, then make a single commit.
+        const blobs = [];
+        for (let i = 0; i < prepared.length; i += 5) {
+          const part = prepared.slice(i, i + 5);
+          const done = await Promise.all(part.map(p =>
+            gh('git/blobs', 'POST', { content: p.base64, encoding: 'base64' })
+          ));
+          blobs.push(...done);
+        }
+
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const ref = await gh(`git/ref/heads/${encodeURIComponent(branch)}`);
+          const parent = ref.object.sha;
+          const commit = await gh(`git/commits/${parent}`);
+          let items = await read(parent);
+          const existing = new Set(items.map(i => i.id));
+          if (prepared.some(p => existing.has(p.id))) throw fail('이미 등록된 이미지입니다.', 409);
+
+          const created = Date.now();
+          const newItems = prepared.map((p, index) => ({
+            id: p.id, name: p.name, tags: [], owners: {},
+            created: created + index,
+            fileName: `library/images/${p.id}.${p.ext}`
+          }));
+
+          const tree = newItems.map((item, index) => ({
+            path: item.fileName, mode: '100644', type: 'blob', sha: blobs[index].sha
+          }));
+
+          items = [...newItems, ...items];
+
+          const index = await gh('git/blobs', 'POST', { content: encoded(JSON.stringify(items)), encoding: 'base64' });
+          tree.push({ path: 'library/index.json', mode: '100644', type: 'blob', sha: index.sha });
+          const nextTree = await gh('git/trees', 'POST', { base_tree: commit.tree.sha, tree });
+          const next = await gh('git/commits', 'POST', { message: `TagBox bulk ${newItems.length}`, tree: nextTree.sha, parents: [parent] });
+
+          try {
+            await gh(`git/refs/heads/${encodeURIComponent(branch)}`, 'PATCH', { sha: next.sha, force: false });
+            return reply(newItems.map(i => publicItem(i, next.sha)));
+          } catch (e) { if (![409,422].includes(e.status) || attempt === 3) throw e; }
+        }
+      }
+
       if (request.method === 'GET') return reply((await read(branch)).map(i => publicItem(i)));
 
       const input = await bodyJSON(request);

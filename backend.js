@@ -43,6 +43,17 @@
       await local('readwrite', s => s.put(item));
       return item;
     },
+    async saveImages(inputs) {
+      if (endpoint) return remote('POST', { items: inputs }, '/api/images/bulk');
+      const results = [];
+      for (const input of inputs) {
+        const item = { id: input.id, name: input.name, tags: [], created: Date.now(), fileName: input.id,
+          path: `data:${input.type};base64,${input.base64}` };
+        await local('readwrite', s => s.put(item));
+        results.push(item);
+      }
+      return results;
+    },
     async saveTags(id, tags) {
       if (endpoint) return remote('PATCH', { id, tags });
       const item = await local('readonly', s => s.get(id));

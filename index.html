@@ -908,7 +908,7 @@ body:has(.modal.open){
 
     <label class="upload">
 
-      <button>
+      <button id="uploadBtn">
         ＋ 이미지 추가
       </button>
 
@@ -2843,112 +2843,143 @@ $('deleteImage').onclick =
 // 이미지 추가
 // =========================
 
-$('file').onchange =
-  async e => {
+const IMAGE_TYPES = ['image/png','image/jpeg','image/webp','image/gif','image/avif'];
 
-    const files =
-      [...e.target.files];
+let uploading = false;
 
+async function uploadBatch(batch, attempt = 0){
+  try{
+    return await window.tagboxAPI.saveImages(batch);
+  }catch(error){
+    if(attempt < 2){
+      await new Promise(resolve =>
+        setTimeout(resolve, 1500 * (attempt + 1))
+      );
+      return uploadBatch(batch, attempt + 1);
+    }
+    throw error;
+  }
+}
 
-    if(files.length === 0){
+function addUploaded(results){
+  items = [
+    ...results.map(r => ({
+      id:r.id,
+      name:r.name,
+      fileName:r.fileName,
+      tags:[],
+      owners:{},
+      src:r.path
+    })),
+    ...items
+  ];
+}
+
+$('file').onchange = async e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+
+  if(!files.length || uploading){
+    return;
+  }
+
+  uploading = true;
+
+  const button = $('uploadBtn');
+  const label = button.textContent;
+  const failed = [];
+
+  let done = 0;
+  let batch = [];
+  let batchBytes = 0;
+
+  const progress = () => {
+    button.textContent =
+      `업로드 중 ${done}/${files.length}`;
+  };
+
+  const flush = async () => {
+    if(!batch.length){
       return;
     }
 
+    const current = batch;
+    batch = [];
+    batchBytes = 0;
 
-    for(
-      const file of files
-    ){
+    progress();
 
+    try{
+      const results = await uploadBatch(current);
+      addUploaded(Array.isArray(results) ? results : []);
+      done += current.length;
+      render();
+    }catch(error){
+      // 응답이 유실됐어도 실제로 저장됐을 수 있으므로 서버 상태로 다시 확인
       try{
+        await load();
+      }catch{}
 
-        console.log(
-          '이미지 저장 시작:',
-          file.name
-        );
+      const saved = new Set(items.map(x => x.id));
 
-
-        if (file.size > 30 * 1024 * 1024) throw new Error('한 장당 30MB 이하로 올려주세요.');
-        if (!['image/png','image/jpeg','image/webp','image/gif','image/avif'].includes(file.type)) throw new Error('PNG, JPG, WebP, GIF, AVIF 이미지만 지원합니다.');
-        const upload = await prepareUpload(file);
-        const base64 = upload.base64;
-          await fileToBase64(
-            file
-          );
-
-
-        const id =
-          crypto.randomUUID();
-
-
-        const result =
-          await window.tagboxAPI.saveImage({
-
-            id:id,
-
-            name:
-              file.name.replace(
-                /\.[^.]+$/,
-                ''
-              ),
-
-            type:upload.type,
-
-            base64:base64
-
-          });
-
-
-        console.log(
-          '이미지 저장 완료:',
-          result
-        );
-
-
-        items.unshift({
-
-          id:result.id,
-
-          name:result.name,
-
-          fileName:
-            result.fileName,
-
-          tags:[],
-
-          src:result.path
-
-        });
-
-
-      }catch(error){
-
-        console.error(
-          '이미지 저장 실패:',
-          error
-        );
-
-
-        alert(
-          `이미지를 저장하지 못했습니다.\n\n${
-            file.name
-          }\n\n${
-            error.message || error
-          }`
-        );
-
-      }
-
+      current.forEach(item => {
+        if(!saved.has(item.id)){
+          failed.push(`${item.name} — ${error.message || error}`);
+        }
+      });
     }
 
-
-    render();
-
-
-    // 파일 선택 초기화
-
-    e.target.value = '';
-
+    progress();
   };
+
+  try{
+    for(const file of files){
+      progress();
+
+      try{
+        if(file.size > 30 * 1024 * 1024){
+          throw new Error('30MB를 넘습니다.');
+        }
+
+        if(!IMAGE_TYPES.includes(file.type)){
+          throw new Error('지원하지 않는 이미지 형식입니다.');
+        }
+
+        const upload = await prepareUpload(file);
+
+        batch.push({
+          id:crypto.randomUUID(),
+          name:file.name.replace(/\.[^.]+$/, ''),
+          type:upload.type,
+          base64:upload.base64
+        });
+
+        batchBytes += upload.base64.length * 0.75;
+
+        if(batch.length >= 8 || batchBytes > 40 * 1024 * 1024){
+          await flush();
+        }
+
+      }catch(error){
+        failed.push(`${file.name} — ${error.message || error}`);
+      }
+    }
+
+    await flush();
+
+  }finally{
+    uploading = false;
+    button.textContent = label;
+
+    if(failed.length){
+      alert(
+        `일부 이미지를 올리지 못했습니다 (${failed.length}장)\n\n` +
+        failed.slice(0, 8).join('\n') +
+        (failed.length > 8 ? '\n…' : '')
+      );
+    }
+  }
+};
 
 
 // =========================
