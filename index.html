@@ -526,6 +526,76 @@ body:has(.modal.open){
   text-align:center
 }
 
+.composer{
+  margin:0 0 12px;
+  padding:10px;
+  border:1px dashed light-dark(#d7dee8,#334052);
+  border-radius:12px
+}
+
+.composer-dirs{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  justify-content:center
+}
+
+.composer-dirs button{
+  min-width:27px;
+  padding:4px 5px;
+  border-radius:7px;
+  background:light-dark(#edf0f5,#242c38);
+  color:inherit;
+  font-size:13px;
+  font-weight:700
+}
+
+.composer-dirs button.active{
+  background:#6d5dfc;
+  color:#fff
+}
+
+.composer-range{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:8px
+}
+
+.composer-range input{
+  flex:1;
+  accent-color:#6d5dfc
+}
+
+.composer-range span{
+  min-width:40px;
+  text-align:right;
+  font-size:12px;
+  color:#8a95a5
+}
+
+.composer-add{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:8px
+}
+
+.composer-preview{
+  padding:6px 9px;
+  border-radius:8px;
+  background:light-dark(#f0f2f6,#222a35);
+  font-size:13px;
+  font-weight:700
+}
+
+.composer-add button{
+  padding:7px 10px;
+  font-size:12px;
+  border-radius:9px
+}
+
 .chat-dock{
   position:fixed;
   right:12px;
@@ -915,6 +985,32 @@ body:has(.modal.open){
       >
         태그 추가
       </button>
+
+    </div>
+
+    <div class="composer" id="composer">
+
+      <div class="composer-dirs" id="composerDirs">
+        <button type="button" data-dir="↖">↖</button>
+        <button type="button" data-dir="↑">↑</button>
+        <button type="button" data-dir="↗">↗</button>
+        <button type="button" data-dir="←">←</button>
+        <button type="button" data-dir="">·</button>
+        <button type="button" data-dir="→">→</button>
+        <button type="button" data-dir="↙">↙</button>
+        <button type="button" data-dir="↓">↓</button>
+        <button type="button" data-dir="↘">↘</button>
+      </div>
+
+      <div class="composer-range">
+        <input id="composerPercent" type="range" min="0" max="100" step="5" value="30">
+        <span id="composerValue">30%</span>
+      </div>
+
+      <div class="composer-add">
+        <span class="composer-preview" id="composerPreview">#↗30%</span>
+        <button id="composerAdd" type="button">이 태그 추가</button>
+      </div>
 
     </div>
 
@@ -2556,6 +2652,54 @@ $('tagInput').addEventListener('input', () => {
 $('tagInput').addEventListener('blur', () => {
   setTimeout(hideSuggest, 120);
 });
+
+
+// =========================
+// 방향 + 어둠 % 태그 조합기
+// =========================
+
+let composerDir = '↗';
+
+function renderComposer(){
+  const percent = Number($('composerPercent').value) || 0;
+
+  $('composerValue').textContent = `${percent}%`;
+  $('composerPreview').textContent = `#${composerDir}${percent}%`;
+
+  $('composerDirs')
+    .querySelectorAll('button')
+    .forEach(button => {
+      button.classList.toggle(
+        'active',
+        button.dataset.dir === composerDir
+      );
+    });
+}
+
+$('composerDirs')
+  .querySelectorAll('button')
+  .forEach(button => {
+    button.onclick = () => {
+      composerDir = button.dataset.dir;
+      renderComposer();
+    };
+  });
+
+$('composerPercent').oninput = renderComposer;
+
+$('composerAdd').onclick = () => {
+  if(!current){
+    return;
+  }
+
+  const percent = Number($('composerPercent').value) || 0;
+
+  $('tagInput').value = `${composerDir}${percent}%`;
+
+  $('addTag').click();
+};
+
+renderComposer();
 
 
 // =========================
