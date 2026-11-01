@@ -423,6 +423,10 @@ body:has(.modal.open){
   display:block
 }
 
+#authModal{
+  z-index:20
+}
+
 .dialog{
   width:min(760px,100%);
   max-height:90vh;
@@ -783,6 +787,166 @@ body:has(.modal.open){
   }
 }
 
+.upload-dialog{
+  width:min(920px,100%);
+  height:88vh;
+  max-height:88vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  padding:16px
+}
+
+.upload-head{
+  display:flex;
+  align-items:center;
+  gap:10px
+}
+
+.upload-tools{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px
+}
+
+.upload-pick{
+  position:relative;
+  display:inline-block
+}
+
+.upload-pick input{
+  position:absolute;
+  inset:0;
+  width:100%;
+  opacity:0;
+  cursor:pointer
+}
+
+.upload-pick button{
+  pointer-events:none
+}
+
+.stage-tagbar{
+  display:flex;
+  gap:8px;
+  margin-top:10px
+}
+
+.stage-tagbar input{
+  flex:1;
+  min-width:0;
+  padding:10px 12px;
+  border-radius:11px;
+  border:1px solid light-dark(#d7dee8,#334052);
+  background:transparent;
+  color:inherit;
+  outline:none
+}
+
+.stage-list{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px;
+  align-content:start
+}
+
+.stage-item{
+  position:relative;
+  border:1px solid light-dark(#e1e7ef,#283241);
+  border-radius:12px;
+  overflow:hidden;
+  background:light-dark(#fff,#171d26);
+  cursor:pointer
+}
+
+.stage-item.selected{
+  outline:2px solid #6d5dfc;
+  outline-offset:-1px
+}
+
+.stage-thumb{
+  aspect-ratio:9/16;
+  background:light-dark(#eef2f7,#111720);
+  overflow:hidden
+}
+
+.stage-thumb img{
+  width:100%;
+  height:100%;
+  object-fit:cover
+}
+
+.stage-check{
+  position:absolute;
+  top:7px;
+  left:7px;
+  width:18px;
+  height:18px;
+  accent-color:#6d5dfc;
+  z-index:2
+}
+
+.stage-remove{
+  position:absolute;
+  top:6px;
+  right:6px;
+  z-index:2;
+  padding:3px 7px;
+  border-radius:8px;
+  background:rgba(0,0,0,.6);
+  color:#fff;
+  font-size:12px
+}
+
+.stage-meta{
+  padding:6px 8px 8px;
+  font-size:11px
+}
+
+.stage-name{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#7c8797
+}
+
+.stage-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:3px;
+  margin-top:5px
+}
+
+.stage-tags .tag{
+  font-size:10px;
+  padding:3px 5px;
+  gap:3px
+}
+
+.stage-tags .tag button{
+  font-size:11px
+}
+
+.stage-error{
+  padding-top:3px;
+  font-size:11px;
+  color:#ff6b6b
+}
+
+.upload-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:12px
+}
+
 .suggest{
   position:fixed;
   z-index:60;
@@ -858,6 +1022,16 @@ body:has(.modal.open){
     grid-template-columns:
       repeat(2,minmax(0,1fr));
     gap:10px
+  }
+
+  .stage-list{
+    grid-template-columns:
+      repeat(2,minmax(0,1fr))
+  }
+
+  .upload-dialog{
+    height:92vh;
+    max-height:92vh
   }
 
   .panel{
@@ -940,20 +1114,9 @@ body:has(.modal.open){
       초기화
     </button>
 
-    <label class="upload">
-
-      <button id="uploadBtn">
-        ＋ 이미지 추가
-      </button>
-
-      <input
-        id="file"
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
-        multiple
-      >
-
-    </label>
+    <button id="uploadBtn" type="button">
+      ＋ 이미지 추가
+    </button>
 
   </div>
 
@@ -1135,6 +1298,51 @@ body:has(.modal.open){
       회원가입에는 가입 코드가 필요합니다.
       첫 번째로 가입한 계정이 관리자가 되며,
       비밀번호는 복구할 수 없으니 기억해주세요.
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- 업로드 준비 -->
+
+<div class="modal" id="uploadModal">
+
+  <div class="dialog upload-dialog">
+
+    <div class="upload-head">
+      <strong>이미지 업로드</strong>
+      <span class="hint" id="stageCount" style="margin:0">0장</span>
+      <span style="flex:1"></span>
+      <button id="uploadClose" class="secondary" type="button">닫기</button>
+    </div>
+
+    <div class="upload-tools">
+      <label class="upload-pick">
+        <button type="button">＋ 사진 선택</button>
+        <input
+          id="stageFile"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+          multiple
+        >
+      </label>
+      <button id="stageSelectAll" class="secondary" type="button">전체 선택</button>
+      <button id="stageSelectNone" class="secondary" type="button">선택 해제</button>
+      <span class="hint" id="stageStatus" style="margin:0"></span>
+    </div>
+
+    <div class="stage-tagbar">
+      <input id="stageTagInput" placeholder="선택한 사진에 태그 입력 (쉼표로 여러 개)">
+      <button id="stageTagApply" type="button">태그 적용</button>
+    </div>
+
+    <div class="stage-list" id="stageList"></div>
+
+    <div class="upload-foot">
+      <span class="hint" style="margin:0">태그는 업로드 후에도 수정할 수 있습니다.</span>
+      <button id="uploadConfirm" type="button">업로드 확정</button>
     </div>
 
   </div>
@@ -3008,102 +3216,332 @@ function addUploaded(results){
   ];
 }
 
-$('file').onchange = async e => {
+// =========================
+// 업로드 준비 화면
+// =========================
+
+let staged = [];
+
+function openUpload(){
+  $('uploadModal').classList.add('open');
+  renderStage();
+}
+
+function closeUpload(){
+  if(uploading){
+    return;
+  }
+  $('uploadModal').classList.remove('open');
+}
+
+function renderStage(){
+  const box = $('stageList');
+
+  const ready = staged.filter(x => x.status === 'ready').length;
+  const selected = staged.filter(x => x.selected && x.status === 'ready').length;
+
+  $('stageCount').textContent =
+    `${staged.length}장` +
+    (ready !== staged.length ? ` (${ready}장 준비됨)` : '');
+
+  $('stageStatus').textContent =
+    selected ? `${selected}장 선택됨` : '사진을 눌러 선택하세요';
+
+  if(!staged.length){
+    box.innerHTML =
+      '<div class="hint" style="grid-column:1/-1;text-align:center;padding:30px 10px">사진을 선택하면 여기에 쌓입니다.</div>';
+    return;
+  }
+
+  box.innerHTML = staged.map(item => `
+    <div class="stage-item${item.selected ? ' selected' : ''}" data-key="${item.key}">
+      <input type="checkbox" class="stage-check" data-key="${item.key}" ${item.selected ? 'checked' : ''}>
+      <button class="stage-remove" data-remove="${item.key}" type="button" title="목록에서 제거">×</button>
+      <div class="stage-thumb">
+        ${item.preview ? `<img src="${item.preview}" alt="">` : ''}
+      </div>
+      <div class="stage-meta">
+        <div class="stage-name">${esc(item.name || item.originalName)}</div>
+        ${
+          item.status === 'error'
+            ? `<div class="stage-error">${esc(item.error || '변환 실패')}</div>`
+            : item.status === 'converting'
+              ? '<div class="stage-error">변환 중…</div>'
+              : `<div class="stage-tags">${
+                  item.tags.map(t => `
+                    <span class="tag">
+                      #${esc(t)}
+                      <button type="button" data-untag="${esc(t)}" data-key="${item.key}">×</button>
+                    </span>
+                  `).join('')
+                }</div>`
+        }
+      </div>
+    </div>
+  `).join('');
+
+  box.querySelectorAll('.stage-item').forEach(el => {
+    el.onclick = e => {
+      if(
+        e.target.closest('.stage-remove') ||
+        e.target.closest('.stage-tags button') ||
+        e.target.classList.contains('stage-check')
+      ){
+        return;
+      }
+
+      const item = staged.find(x => x.key === el.dataset.key);
+
+      if(!item || item.status === 'error'){
+        return;
+      }
+
+      item.selected = !item.selected;
+      renderStage();
+    };
+  });
+
+  box.querySelectorAll('.stage-check').forEach(check => {
+    check.onclick = e => e.stopPropagation();
+    check.onchange = () => {
+      const item = staged.find(x => x.key === check.dataset.key);
+      if(item){
+        item.selected = check.checked;
+        renderStage();
+      }
+    };
+  });
+
+  box.querySelectorAll('.stage-remove').forEach(button => {
+    button.onclick = e => {
+      e.stopPropagation();
+
+      const item = staged.find(x => x.key === button.dataset.remove);
+
+      if(item && item.preview){
+        URL.revokeObjectURL(item.preview);
+      }
+
+      staged = staged.filter(x => x.key !== button.dataset.remove);
+      renderStage();
+    };
+  });
+
+  box.querySelectorAll('.stage-tags button').forEach(button => {
+    button.onclick = e => {
+      e.stopPropagation();
+
+      const item = staged.find(x => x.key === button.dataset.key);
+
+      if(item){
+        item.tags = item.tags.filter(t => t !== button.dataset.untag);
+        renderStage();
+      }
+    };
+  });
+}
+
+async function stageFiles(files){
+  if(uploading){
+    return;
+  }
+
+  for(const file of files){
+    const item = {
+      key: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      name: file.name.replace(/\.[^.]+$/, ''),
+      originalName: file.name,
+      type: '',
+      base64: '',
+      tags: [],
+      selected: true,
+      preview: URL.createObjectURL(file),
+      status: 'converting',
+      error: ''
+    };
+
+    staged.push(item);
+    renderStage();
+
+    try{
+      if(file.size > 30 * 1024 * 1024){
+        throw new Error('30MB를 넘습니다.');
+      }
+
+      if(!IMAGE_TYPES.includes(file.type)){
+        throw new Error('지원하지 않는 이미지 형식입니다.');
+      }
+
+      const upload = await prepareUpload(file);
+
+      item.type = upload.type;
+      item.base64 = upload.base64;
+      item.status = 'ready';
+
+    }catch(error){
+      item.status = 'error';
+      item.error = error.message || String(error);
+      item.selected = false;
+    }
+
+    renderStage();
+  }
+}
+
+$('uploadBtn').onclick = openUpload;
+$('uploadClose').onclick = closeUpload;
+
+$('uploadModal').onclick = e => {
+  if(e.target === $('uploadModal')){
+    closeUpload();
+  }
+};
+
+$('stageFile').onchange = async e => {
   const files = [...e.target.files];
   e.target.value = '';
+  await stageFiles(files);
+};
 
-  if(!files.length || uploading){
+$('stageSelectAll').onclick = () => {
+  staged.forEach(item => {
+    if(item.status === 'ready'){
+      item.selected = true;
+    }
+  });
+  renderStage();
+};
+
+$('stageSelectNone').onclick = () => {
+  staged.forEach(item => {
+    item.selected = false;
+  });
+  renderStage();
+};
+
+$('stageTagApply').onclick = () => {
+  const input = $('stageTagInput');
+  const tags = input.value.split(',').map(x => x.trim()).filter(Boolean);
+
+  if(!tags.length){
+    return;
+  }
+
+  const targets = staged.filter(x => x.selected && x.status === 'ready');
+
+  if(!targets.length){
+    alert('태그를 적용할 사진을 먼저 선택하세요.');
+    return;
+  }
+
+  targets.forEach(item => {
+    item.tags = [...new Set([...item.tags, ...tags])];
+  });
+
+  input.value = '';
+  renderStage();
+};
+
+$('stageTagInput').addEventListener('input', () => {
+  const parts = $('stageTagInput').value.split(',');
+  showSuggest($('stageTagInput'), parts[parts.length - 1], tag => {
+    parts[parts.length - 1] = ` ${tag}`;
+    $('stageTagInput').value =
+      parts.join(',').replace(/^\s+/, '');
+    $('stageTagInput').focus();
+  });
+});
+
+$('stageTagInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    hideSuggest();
+    $('stageTagApply').click();
+  }
+});
+
+$('stageTagInput').addEventListener('blur', () => {
+  setTimeout(hideSuggest, 120);
+});
+
+$('uploadConfirm').onclick = async () => {
+  if(uploading){
+    return;
+  }
+
+  const ready = staged.filter(x => x.status === 'ready');
+
+  if(!ready.length){
+    alert('업로드할 사진이 없습니다.');
+    return;
+  }
+
+  if(ready.some(x => x.tags.length) && !session){
+    alert('태그를 함께 올리려면 로그인이 필요합니다.');
+    openAuth();
     return;
   }
 
   uploading = true;
+  $('uploadConfirm').disabled = true;
+  $('stageStatus').textContent = '업로드 준비 중…';
 
-  const button = $('uploadBtn');
-  const label = button.textContent;
-  const failed = [];
+  const groups = [];
+  let group = [];
+
+  for(const item of ready){
+    group.push(item);
+    if(group.length >= 8){
+      groups.push(group);
+      group = [];
+    }
+  }
+  if(group.length){
+    groups.push(group);
+  }
 
   let done = 0;
-  let batch = [];
-  let batchBytes = 0;
-
-  const progress = () => {
-    button.textContent =
-      `업로드 중 ${done}/${files.length}`;
-  };
-
-  const flush = async () => {
-    if(!batch.length){
-      return;
-    }
-
-    const current = batch;
-    batch = [];
-    batchBytes = 0;
-
-    progress();
-
-    try{
-      const results = await uploadBatch(current);
-      addUploaded(Array.isArray(results) ? results : []);
-      done += current.length;
-      page = 1;
-      render();
-    }catch(error){
-      // 응답이 유실됐어도 실제로 저장됐을 수 있으므로 서버 상태로 다시 확인
-      try{
-        await load();
-      }catch{}
-
-      const saved = new Set(items.map(x => x.id));
-
-      current.forEach(item => {
-        if(!saved.has(item.id)){
-          failed.push(`${item.name} — ${error.message || error}`);
-        }
-      });
-    }
-
-    progress();
-  };
+  const failed = [];
 
   try{
-    for(const file of files){
-      progress();
+    for(const part of groups){
+      $('stageStatus').textContent =
+        `업로드 중 ${done}/${ready.length}`;
+
+      const payload = part.map(item => ({
+        id:item.id,
+        name:item.name,
+        type:item.type,
+        base64:item.base64,
+        tags:item.tags
+      }));
 
       try{
-        if(file.size > 30 * 1024 * 1024){
-          throw new Error('30MB를 넘습니다.');
-        }
+        await uploadBatch(payload);
+        done += part.length;
 
-        if(!IMAGE_TYPES.includes(file.type)){
-          throw new Error('지원하지 않는 이미지 형식입니다.');
-        }
+        const keys = new Set(part.map(x => x.key));
 
-        const upload = await prepareUpload(file);
-
-        batch.push({
-          id:crypto.randomUUID(),
-          name:file.name.replace(/\.[^.]+$/, ''),
-          type:upload.type,
-          base64:upload.base64
+        part.forEach(x => {
+          if(x.preview){
+            URL.revokeObjectURL(x.preview);
+          }
         });
 
-        batchBytes += upload.base64.length * 0.75;
-
-        if(batch.length >= 8 || batchBytes > 40 * 1024 * 1024){
-          await flush();
-        }
+        staged = staged.filter(x => !keys.has(x.key));
+        renderStage();
 
       }catch(error){
-        failed.push(`${file.name} — ${error.message || error}`);
+        part.forEach(item => {
+          failed.push(`${item.name} — ${error.message || error}`);
+        });
       }
     }
-
-    await flush();
-
   }finally{
     uploading = false;
-    button.textContent = label;
+    $('uploadConfirm').disabled = false;
+    $('stageStatus').textContent = '';
 
     if(failed.length){
       alert(
@@ -3111,7 +3549,15 @@ $('file').onchange = async e => {
         failed.slice(0, 8).join('\n') +
         (failed.length > 8 ? '\n…' : '')
       );
+      return;
     }
+
+    $('uploadModal').classList.remove('open');
+    page = 1;
+
+    try{
+      await load();
+    }catch{}
   }
 };
 
