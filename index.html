@@ -362,6 +362,40 @@ button:hover{
   color:#7b8797
 }
 
+.pager{
+  max-width:1180px;
+  margin:16px auto 40px;
+  display:flex;
+  gap:6px;
+  justify-content:center;
+  flex-wrap:wrap
+}
+
+.pager button{
+  min-width:38px;
+  padding:8px 11px;
+  border-radius:10px;
+  background:light-dark(#edf0f5,#242c38);
+  color:inherit;
+  font-weight:700;
+  font-size:13px
+}
+
+.pager button.active{
+  background:#6d5dfc;
+  color:#fff
+}
+
+.pager button:disabled{
+  opacity:.4;
+  cursor:default
+}
+
+.pager .gap{
+  padding:8px 4px;
+  color:#7c8797
+}
+
 body:has(.modal.open){
   overflow:hidden
 }
@@ -954,6 +988,8 @@ body:has(.modal.open){
   id="grid"
 ></main>
 
+<nav class="pager" id="pager"></nav>
+
 
 <!-- 이미지 크게 보기 -->
 
@@ -1139,6 +1175,9 @@ let items = [];
 let current = null;
 
 let tagList = [];
+
+const PAGE_SIZE = 100;
+let page = 1;
 
 // 태그 저장 요청을 한 번에 하나씩 순서대로 보내기 위한 상태
 let tagsVersion = 0;
@@ -1762,10 +1801,26 @@ function render(){
     `${items.length}개 이미지 · ${allTags.length}개 태그`;
 
 
-  $('grid').innerHTML =
-    filtered.length
+  const totalPages =
+    Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
-      ? filtered.map(x => `
+  if(page > totalPages){
+    page = totalPages;
+  }
+
+  if(page < 1){
+    page = 1;
+  }
+
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const visible =
+    filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+
+  $('grid').innerHTML =
+    visible.length
+
+      ? visible.map(x => `
 
         <article
           class="card"
@@ -1922,6 +1977,8 @@ function render(){
 
       chip.onclick = () => {
 
+        page = 1;
+
         $('search').value =
           chip.dataset.tag;
 
@@ -1931,6 +1988,79 @@ function render(){
 
     });
 
+
+  renderPager(totalPages, filtered.length);
+
+}
+
+
+// =========================
+// 페이지 이동
+// =========================
+
+function renderPager(totalPages, count){
+  const pager = $('pager');
+
+  if(!count){
+    pager.innerHTML = '';
+    return;
+  }
+
+  const parts = [];
+
+  const button = (number, text, disabled) =>
+    `<button type="button" data-page="${number}"` +
+    ` class="${number === page ? 'active' : ''}"` +
+    `${disabled ? ' disabled' : ''}>${text}</button>`;
+
+  parts.push(button(page - 1, '이전', page <= 1));
+
+  const numbers = new Set([1, totalPages]);
+
+  for(let n = page - 2; n <= page + 2; n++){
+    if(n >= 1 && n <= totalPages){
+      numbers.add(n);
+    }
+  }
+
+  let prev = 0;
+
+  [...numbers]
+    .sort((a, b) => a - b)
+    .forEach(n => {
+      if(prev && n - prev > 1){
+        parts.push('<span class="gap">…</span>');
+      }
+      parts.push(button(n, n, false));
+      prev = n;
+    });
+
+  parts.push(button(page + 1, '다음', page >= totalPages));
+
+  pager.innerHTML = parts.join('');
+
+  pager
+    .querySelectorAll('button[data-page]')
+    .forEach(btn => {
+      btn.onclick = () => {
+        const next = Number(btn.dataset.page);
+
+        if(
+          btn.disabled ||
+          !Number.isInteger(next) ||
+          next < 1 ||
+          next > totalPages ||
+          next === page
+        ){
+          return;
+        }
+
+        page = next;
+        render();
+
+        window.scrollTo({ top:0, behavior:'smooth' });
+      };
+    });
 }
 
 
@@ -2252,6 +2382,7 @@ function renderModalTags(){
 // =========================
 
 $('search').oninput = () => {
+  page = 1;
   render();
 
   const parts = $('search').value.split(/\s+/);
@@ -2277,6 +2408,8 @@ $('search').addEventListener('blur', () => {
 
 
 $('clear').onclick = () => {
+
+  page = 1;
 
   $('search').value = '';
 
@@ -2913,6 +3046,7 @@ $('file').onchange = async e => {
       const results = await uploadBatch(current);
       addUploaded(Array.isArray(results) ? results : []);
       done += current.length;
+      page = 1;
       render();
     }catch(error){
       // 응답이 유실됐어도 실제로 저장됐을 수 있으므로 서버 상태로 다시 확인
