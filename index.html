@@ -1032,6 +1032,11 @@ let current = null;
 
 let tagList = [];
 
+// 태그 저장 요청을 한 번에 하나씩 순서대로 보내기 위한 상태
+let tagsVersion = 0;
+let tagSaveRunning = false;
+let tagSaveQueued = false;
+
 
 // =========================
 // GitHub 로그인 세션
@@ -2113,6 +2118,8 @@ function renderModalTags(){
             ];
           }
 
+          tagsVersion += 1;
+
 
           renderModalTags();
           render();
@@ -2343,33 +2350,63 @@ async function saveCurrentTags(){
     return false;
   }
 
-  const tags = [
-    ...new Set(
-      current.tags
-        .map(x => x.trim())
-        .filter(Boolean)
-    )
-  ];
-
-  const target = current;
-  const result = await window.tagboxAPI.saveTags(
-    target.id,
-    tags
-  );
-
-  if(!result){
-    throw new Error('태그를 저장하지 못했습니다.');
+  // 이미 저장 중이면 끝난 뒤 최신 상태로 한 번 더 저장
+  if(tagSaveRunning){
+    tagSaveQueued = true;
+    return true;
   }
 
-  const index = items.findIndex(
-    x => x.id === target.id
-  );
+  tagSaveRunning = true;
 
-  if(index !== -1){
-    items[index].tags = [...tags];
+  try{
+    do{
+      tagSaveQueued = false;
+
+      const target = current;
+
+      if(!target){
+        return false;
+      }
+
+      const version = tagsVersion;
+
+      const tags = [
+        ...new Set(
+          target.tags
+            .map(x => x.trim())
+            .filter(Boolean)
+        )
+      ];
+
+      const result = await window.tagboxAPI.saveTags(
+        target.id,
+        tags
+      );
+
+      if(!result){
+        throw new Error('태그를 저장하지 못했습니다.');
+      }
+
+      // 저장하는 동안 태그가 더 바뀌었다면
+      // 응답 값으로 현재 상태를 덮어쓰지 않음
+      if(version === tagsVersion){
+        const index = items.findIndex(
+          x => x.id === target.id
+        );
+
+        if(index !== -1){
+          items[index].tags = [...tags];
+        }
+
+        target.tags = [...tags];
+      }
+
+    }while(tagSaveQueued);
+
+  }finally{
+    tagSaveRunning = false;
   }
 
-  target.tags = [...tags];
   return true;
 }
 
@@ -2457,6 +2494,8 @@ $('addTag').onclick = async () => {
 
   }
 
+  tagsVersion += 1;
+
 
   // 입력창 비우기
 
@@ -2485,6 +2524,11 @@ $('tagInput').addEventListener(
   e => {
 
     if(e.key === 'Enter'){
+
+      // 한글 조합 중의 Enter는 태그 확정으로 처리하지 않음
+      if(e.isComposing){
+        return;
+      }
 
       e.preventDefault();
 
