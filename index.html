@@ -645,6 +645,14 @@ body:has(.modal.open){
   text-align:center
 }
 
+.modal-tags .tag{
+  cursor:pointer
+}
+
+.modal-tags .tag button{
+  cursor:pointer
+}
+
 .composer{
   margin:0 0 12px;
   padding:10px;
@@ -2631,6 +2639,28 @@ $('shareItem').onclick = async () => {
   try { await navigator.clipboard.writeText(link.href); alert('공유 링크를 복사했습니다.'); }
   catch { prompt('공유 링크', link.href); }
 };
+function searchTagFromViewer(tag){
+  page = 1;
+  filterUntagged = false;
+
+  $('search').value = tag;
+
+  render();
+  requestCloseItem();
+}
+
+$('modalTags').addEventListener('click', e => {
+  if(e.target.closest('.remove-tag')){
+    return;
+  }
+
+  const tagEl = e.target.closest('.tag');
+
+  if(tagEl && tagEl.dataset.tag){
+    searchTagFromViewer(tagEl.dataset.tag);
+  }
+});
+
 function openItem(id, skipHistory){
 
   current =
@@ -2751,7 +2781,8 @@ function renderModalTags(){
           return `
           <span
             class="tag${mine ? '' : ' shared'}"
-            title="${mine ? '내가 추가한 태그' : '다른 사람이 추가한 태그 — 수정·삭제할 수 없습니다'}"
+            data-tag="${esc(t)}"
+            title="${mine ? '내가 추가한 태그 — 클릭하면 검색' : '다른 사람이 추가한 태그 — 클릭하면 검색'}"
           >
 
             #${esc(t)}
