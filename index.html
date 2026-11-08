@@ -1685,6 +1685,23 @@ function ownsTag(item, tag){
     String((item.owners || {})[tag]);
 }
 
+function isAdultItem(item){
+  const list = (window.TAGBOX_CONFIG.adultTags || [])
+    .map(t => String(t).toLowerCase());
+
+  return (item.tags || [])
+    .some(t => list.includes(String(t).toLowerCase()));
+}
+
+// 로그인하지 않았으면 19금 태그 이미지는 목록에서 숨김
+function visibleItems(){
+  if(!window.tagboxShared || session){
+    return items;
+  }
+
+  return items.filter(x => !isAdultItem(x));
+}
+
 function renderAuth(){
   const button = $('authBtn');
 
@@ -1705,7 +1722,10 @@ function renderAuth(){
       session = null;
       renderAuth();
       render();
-      if($('modal').classList.contains('open')){
+
+      if(current && isAdultItem(current)){
+        requestCloseItem();
+      }else if($('modal').classList.contains('open')){
         renderModalTags();
       }
     };
@@ -2173,6 +2193,8 @@ async function load(){
 
 function render(){
 
+  const source = visibleItems();
+
   const q =
     $('search')
       .value
@@ -2187,7 +2209,7 @@ function render(){
 
 
   const filtered =
-    items.filter(x => {
+    source.filter(x => {
 
       if(filterUntagged && (x.tags || []).length){
         return false;
@@ -2210,7 +2232,7 @@ function render(){
 
   const allTags = [
     ...new Set(
-      items.flatMap(x =>
+      source.flatMap(x =>
         Array.isArray(x.tags)
           ? x.tags
           : []
@@ -2225,7 +2247,7 @@ function render(){
 
 
   $('stats').textContent =
-    `${items.length}개 이미지 · ${allTags.length}개 태그`;
+    `${source.length}개 이미지 · ${allTags.length}개 태그`;
 
 
   const totalPages =
@@ -2343,7 +2365,7 @@ function render(){
   const counts = {};
 
 
-  items
+  source
     .flatMap(x =>
       Array.isArray(x.tags)
         ? x.tags
@@ -2358,7 +2380,7 @@ function render(){
 
 
   const untaggedCount =
-    items.filter(x => !(x.tags || []).length).length;
+    source.filter(x => !(x.tags || []).length).length;
 
 
   $('chips').innerHTML =
@@ -2673,6 +2695,11 @@ function openItem(id, skipHistory){
     return;
   }
 
+  if(window.tagboxShared && !session && isAdultItem(current)){
+    alert('19금 태그가 있는 이미지는 로그인 후 볼 수 있습니다.');
+    return;
+  }
+
 
   // 이미지 삭제는 관리자만
   $('deleteImage').style.display =
@@ -2932,17 +2959,18 @@ $('clear').onclick = () => {
 
 function renderTagCloud(query){
   const q = String(query || '').trim().toLowerCase();
+  const source = visibleItems();
 
   const counts = {};
 
-  items.forEach(item => {
+  source.forEach(item => {
     (item.tags || []).forEach(tag => {
       counts[tag] = (counts[tag] || 0) + 1;
     });
   });
 
   const untagged =
-    items.filter(x => !(x.tags || []).length).length;
+    source.filter(x => !(x.tags || []).length).length;
 
   const parts = [];
 
@@ -3036,26 +3064,30 @@ function setSelectMode(on){
 $('bulkTagBtn').onclick = () => setSelectMode(!selectMode);
 
 $('randomBtn').onclick = () => {
-  if(!items.length){
+  const source = visibleItems();
+
+  if(!source.length){
     alert('이미지가 없습니다.');
     return;
   }
 
   const pick =
-    items[Math.floor(Math.random() * items.length)];
+    source[Math.floor(Math.random() * source.length)];
 
   openItem(pick.id);
 };
 
 $('randomInModal').onclick = () => {
-  if(items.length < 2){
+  const source = visibleItems();
+
+  if(source.length < 2){
     return;
   }
 
   let pick;
 
   do{
-    pick = items[Math.floor(Math.random() * items.length)];
+    pick = source[Math.floor(Math.random() * source.length)];
   }while(current && pick.id === current.id);
 
   openItem(pick.id, true);
